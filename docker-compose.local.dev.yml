@@ -1,0 +1,7 @@
+services:
+  kodi:
+    volumes:
+      - type: bind
+        source: ./plugin.video.pentaract
+        target: /data/.kodi/addons/plugin.video.pentaract
+        read_only: true

@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: release-master
@@ -16,6 +18,9 @@ jobs:
   release:
     if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
@@ -59,21 +64,28 @@ jobs:
           name: pentaract-kodi-${{ steps.version.outputs.tag }}
           if-no-files-found: error
           path: |
+            docs/plugin.video.pentaract.zip
+            docs/repository.pentaract.zip
             repository/addons.xml
             repository/addons.xml.md5
             repository/zips/**/*.zip
 
-      - name: Commit release files
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Commit release version files
         id: commit
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add plugin.video.pentaract/addon.xml repository.pentaract/addon.xml repository/ docs/
+          git add plugin.video.pentaract/addon.xml repository.pentaract/addon.xml
 
           if git diff --cached --quiet; then
             echo "created=false" >> "${GITHUB_OUTPUT}"
-            echo "No tracked release files changed."
+            echo "No tracked version files changed."
             exit 0
           fi
 
@@ -108,9 +120,23 @@ jobs:
           fi
 
           gh release create "${{ steps.version.outputs.tag }}" \
+            docs/plugin.video.pentaract.zip \
+            docs/repository.pentaract.zip \
             repository/addons.xml \
             repository/addons.xml.md5 \
             repository/zips/plugin.video.pentaract/*.zip \
             repository/zips/repository.pentaract/*.zip \
             --generate-notes \
             --title "${{ steps.version.outputs.tag }}"
+
+  deploy-pages:
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

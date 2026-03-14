@@ -1,8 +1,12 @@
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+
+import xbmcvfs
 
 
 class ConfigurationError(Exception):
@@ -19,10 +23,17 @@ class PentaractAPIError(Exception):
 class PentaractClient:
     def __init__(self, addon):
         self.addon = addon
+        self._profile_dir = xbmcvfs.translatePath(self.addon.getAddonInfo("profile"))
+        self._session_path = os.path.join(self._profile_dir, "session.json")
+        self._settings_path = os.path.join(self._profile_dir, "settings.xml")
 
     @property
     def base_url(self):
-        return self._normalize_base_url(self.addon.getSettingString("base_url"))
+        base_url = self._normalize_base_url(self.addon.getSettingString("base_url"))
+        if self._is_legacy_default_base_url(base_url):
+            self.addon.setSettingString("base_url", "")
+            return ""
+        return base_url
 
     @base_url.setter
     def base_url(self, value):
@@ -46,15 +57,17 @@ class PentaractClient:
 
     @property
     def access_token(self):
-        return self.addon.getSettingString("access_token").strip()
+        return self._load_session().get("access_token", "").strip()
 
     @access_token.setter
     def access_token(self, value):
-        self.addon.setSettingString("access_token", (value or "").strip())
+        session = self._load_session()
+        session["access_token"] = (value or "").strip()
+        self._save_session(session)
 
     @property
     def token_expiry(self):
-        raw_value = self.addon.getSettingString("token_expiry").strip()
+        raw_value = self._load_session().get("token_expiry", 0)
         try:
             return int(raw_value)
         except (TypeError, ValueError):
@@ -62,11 +75,12 @@ class PentaractClient:
 
     @token_expiry.setter
     def token_expiry(self, value):
-        self.addon.setSettingString("token_expiry", str(int(value or 0)))
+        session = self._load_session()
+        session["token_expiry"] = int(value or 0)
+        self._save_session(session)
 
     def clear_session(self):
-        self.access_token = ""
-        self.token_expiry = 0
+        self._save_session({})
 
     def clear_credentials(self):
         self.clear_session()
@@ -199,3 +213,35 @@ class PentaractClient:
         except (TypeError, ValueError):
             pass
         return getattr(error, "reason", "") or "Error HTTP %s" % error.code
+
+    def _load_session(self):
+        try:
+            with open(self._session_path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                if isinstance(data, dict):
+                    return data
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError):
+            return {}
+        return {}
+
+    def _save_session(self, session):
+        xbmcvfs.mkdirs(self._profile_dir)
+        with open(self._session_path, "w", encoding="utf-8") as handle:
+            json.dump(session or {}, handle)
+
+    def _is_legacy_default_base_url(self, value):
+        if value != "http://localhost:8000":
+            return False
+
+        try:
+            tree = ET.parse(self._settings_path)
+        except (ET.ParseError, FileNotFoundError, OSError):
+            return False
+
+        root = tree.getroot()
+        for setting in root.findall("setting"):
+            if setting.attrib.get("id") == "base_url" and setting.attrib.get("default") == "true":
+                return True
+        return False

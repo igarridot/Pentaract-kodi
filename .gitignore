@@ -2,3 +2,6 @@ __pycache__/
 .pycache/
 *.pyc
 .DS_Store
+local-testing/kodi-data/
+docs/
+repository/
