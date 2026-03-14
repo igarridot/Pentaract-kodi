@@ -2,6 +2,7 @@
 
 COMPOSE_LOCAL = docker compose -f docker-compose.local.yml
 COMPOSE_LOCAL_DEV = docker compose -f docker-compose.local.yml -f docker-compose.local.dev.yml
+LOCAL_REPOSITORY_BASE_URL = http://repo/
 
 help:
 	@printf '%s\n' \
@@ -17,7 +18,7 @@ help:
 		'  make local-ps          Lista los contenedores del stack local'
 
 local-build:
-	python3 scripts/build_repository.py
+	PENTARACT_KODI_PUBLIC_BASE_URL=$(LOCAL_REPOSITORY_BASE_URL) python3 scripts/build_repository.py
 
 local-up: local-build
 	$(COMPOSE_LOCAL) up -d

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import hashlib
+import os
 import shutil
 import xml.dom.minidom
 import xml.etree.ElementTree as ET
@@ -16,7 +17,7 @@ ADDON_DIRS = [
 OUTPUT_DIR = ROOT / "repository"
 ZIPS_DIR = OUTPUT_DIR / "zips"
 DOCS_DIR = ROOT / "docs"
-PAGES_URL = "https://igarridot.github.io/Pentaract-kodi/"
+DEFAULT_PUBLIC_BASE_URL = "https://igarridot.github.io/Pentaract-kodi/"
 REPO_URL = "https://github.com/igarridot/Pentaract-kodi"
 
 
@@ -24,12 +25,51 @@ def parse_addon(addon_dir):
     tree = ET.parse(addon_dir / "addon.xml")
     addon = tree.getroot()
     normalize_xml(addon)
+    if addon.attrib["id"] == "repository.pentaract":
+        apply_repository_feed_urls(addon)
     return {
         "dir": addon_dir,
         "id": addon.attrib["id"],
         "version": addon.attrib["version"],
         "xml": addon,
     }
+
+
+def public_base_url():
+    configured = os.environ.get("PENTARACT_KODI_PUBLIC_BASE_URL", DEFAULT_PUBLIC_BASE_URL).strip()
+    if not configured:
+        configured = DEFAULT_PUBLIC_BASE_URL
+    return configured.rstrip("/") + "/"
+
+
+def apply_repository_feed_urls(addon_xml):
+    directory = addon_xml.find("./extension[@point='xbmc.addon.repository']/dir")
+    if directory is None:
+        return
+
+    base_url = public_base_url()
+    info = ensure_xml_child(directory, "info")
+    info.attrib["compressed"] = "false"
+    info.text = base_url + "repository/addons.xml"
+
+    checksum = ensure_xml_child(directory, "checksum")
+    checksum.text = base_url + "repository/addons.xml.md5"
+
+    data_dir = ensure_xml_child(directory, "datadir")
+    data_dir.attrib["zip"] = "true"
+    data_dir.text = base_url + "repository/zips/"
+
+
+def ensure_xml_child(parent, tag):
+    child = parent.find(tag)
+    if child is None:
+        child = ET.SubElement(parent, tag)
+    return child
+
+
+def serialize_xml(element):
+    xml_bytes = ET.tostring(element, encoding="utf-8")
+    return xml.dom.minidom.parseString(xml_bytes).toprettyxml(indent="  ", encoding="utf-8")
 
 
 def clean_output():
@@ -42,16 +82,18 @@ def build_zip(addon):
     target_dir = ZIPS_DIR / addon["id"]
     target_dir.mkdir(parents=True, exist_ok=True)
     zip_path = target_dir / ("%s-%s.zip" % (addon["id"], addon["version"]))
+    addon_xml_relative = addon["dir"] / "addon.xml"
     with ZipFile(zip_path, "w", ZIP_DEFLATED) as archive:
         for file_path in sorted(addon["dir"].rglob("*")):
             if not file_path.is_file():
                 continue
             if "__pycache__" in file_path.parts or file_path.name == ".DS_Store":
                 continue
-            archive.write(
-                file_path,
-                str(Path(addon["dir"].name) / file_path.relative_to(addon["dir"])),
-            )
+            archive_path = str(Path(addon["dir"].name) / file_path.relative_to(addon["dir"]))
+            if file_path == addon_xml_relative:
+                archive.writestr(archive_path, serialize_xml(addon["xml"]))
+                continue
+            archive.write(file_path, archive_path)
     addon["zip_path"] = zip_path
 
 
@@ -59,8 +101,7 @@ def build_addons_xml(addons):
     root = ET.Element("addons")
     for addon in addons:
         root.append(addon["xml"])
-    xml_bytes = ET.tostring(root, encoding="utf-8")
-    pretty_xml = xml.dom.minidom.parseString(xml_bytes).toprettyxml(indent="  ", encoding="utf-8")
+    pretty_xml = serialize_xml(root)
     addons_xml_path = OUTPUT_DIR / "addons.xml"
     addons_xml_path.write_bytes(pretty_xml)
     checksum = hashlib.md5(pretty_xml).hexdigest()
@@ -110,6 +151,7 @@ def build_pages_index(addons):
     plugin_addon = next(addon for addon in addons if addon["id"] == "plugin.video.pentaract")
     repo_zip_name = repo_addon["zip_path"].name
     plugin_zip_name = plugin_addon["zip_path"].name
+    pages_url = public_base_url()
 
     return f"""<!doctype html>
 <html lang="es">
@@ -175,7 +217,7 @@ def build_pages_index(addons):
     <section class="panel">
       <h1>Pentaract Kodi Hub</h1>
       <p>Fuente web para instalar el repositorio y el addon de Pentaract en Kodi, al estilo de los tutoriales con "Add source".</p>
-      <p><strong>Fuente para Kodi File Manager:</strong> <code>{PAGES_URL}</code></p>
+      <p><strong>Fuente para Kodi File Manager:</strong> <code>{pages_url}</code></p>
     </section>
     <section class="panel">
       <h2>Descargas rápidas</h2>
@@ -190,7 +232,7 @@ def build_pages_index(addons):
       <h2>Instalación en Kodi</h2>
       <ol>
         <li>Ve a <strong>Settings &gt; File Manager &gt; Add source</strong>.</li>
-        <li>Introduce exactamente <code>{PAGES_URL}</code> y ponle un nombre, por ejemplo <code>Pentaract</code>.</li>
+        <li>Introduce exactamente <code>{pages_url}</code> y ponle un nombre, por ejemplo <code>Pentaract</code>.</li>
         <li>Ve a <strong>Add-ons &gt; Install from ZIP file</strong> y entra en la fuente que acabas de crear.</li>
         <li>Selecciona <a href="repository.pentaract.zip"><code>repository.pentaract.zip</code></a>. Es la opción recomendada porque permite actualizaciones automáticas.</li>
         <li>Después ve a <strong>Install from repository &gt; Pentaract Repository &gt; Video add-ons &gt; Pentaract</strong>.</li>

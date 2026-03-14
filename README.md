@@ -6,8 +6,9 @@ Addon para Kodi 21 que actua como cliente de `pentaract`.
 
 - `plugin.video.pentaract`: addon de video para navegar storages, carpetas y ficheros.
 - `repository.pentaract`: addon de repositorio para instalar el cliente desde Kodi.
-- `scripts/build_repository.py`: genera `repository/addons.xml`, `repository/addons.xml.md5` y los ZIPs publicables.
-- `docs/`: fuente web navegable para Kodi, pensada para imitar el flujo de instalacion tipo Palantir.
+- `scripts/build_repository.py`: genera `repository/` y `docs/` localmente para pruebas y publicacion.
+
+`docs/` y `repository/` son artefactos generados. Se usan en local, pero ya no se versionan en Git para evitar conflictos de merge con ZIPs y contenido publicado.
 
 ## Publicacion automatica
 
@@ -19,16 +20,17 @@ Cada merge a `master` dispara `.github/workflows/release.yml`, que hace esto aut
 4. Genera `repository/addons.xml`, `repository/addons.xml.md5` y los ZIPs.
 5. Regenera `docs/` con una fuente web navegable y ZIPs estables.
 6. Sube los ZIPs y metadatos como artefacto del workflow.
-7. Hace commit de los artefactos publicados dentro de `repository/` y `docs/`.
-8. Crea y publica un tag Git estandar.
-9. Publica una GitHub Release con los ZIPs y metadatos.
+7. Sube `docs/` como artifact de GitHub Pages y lo despliega con `deploy-pages`.
+8. Hace commit solo de los `addon.xml` versionados.
+9. Crea y publica un tag Git estandar.
+10. Publica una GitHub Release con los ZIPs y metadatos.
 
 La logica de versionado esta en `scripts/version.py`. Si no existe ningun tag semantico previo, la primera release usa la version actual de los addons. A partir de ahi, cada merge incrementa automaticamente el patch.
 
 ## Instalacion en Kodi
 
-1. Asegura que GitHub Actions puede escribir en `master`.
-2. Activa GitHub Pages una sola vez en `Settings > Pages` usando `Deploy from a branch`, rama `master` y carpeta `/docs`.
+1. Asegura que GitHub Actions puede escribir en `master`, crear tags y desplegar GitHub Pages.
+2. Activa GitHub Pages una sola vez en `Settings > Pages` usando `GitHub Actions` como fuente.
 3. Haz merge a `master` y espera a que termine la release automatica.
 4. En Kodi ve a `Settings > File Manager > Add source`.
 5. Como ruta introduce exactamente `https://igarridot.github.io/Pentaract-kodi/`.
@@ -47,17 +49,18 @@ La logica de versionado esta en `scripts/version.py`. Si no existe ningun tag se
 - Fuente web para Kodi: `https://igarridot.github.io/Pentaract-kodi/`
 - ZIP estable del repositorio para `Install from ZIP file`: `https://igarridot.github.io/Pentaract-kodi/repository.pentaract.zip`
 - ZIP estable del addon de video: `https://igarridot.github.io/Pentaract-kodi/plugin.video.pentaract.zip`
-- Feed `addons.xml`: `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/addons.xml`
-- Checksum del feed: `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/addons.xml.md5`
-- Base de ZIPs del repositorio: `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/`
-- ZIP actual del addon de repositorio: `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/repository.pentaract/repository.pentaract-1.0.0.zip`
-- ZIP actual del addon de video: `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/plugin.video.pentaract/plugin.video.pentaract-1.0.0.zip`
+- Feed `addons.xml`: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml`
+- Checksum del feed: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml.md5`
+- Base de ZIPs del repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/`
+- ZIP actual del addon de repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-1.0.0.zip`
+- ZIP actual del addon de video: `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-1.0.0.zip`
 
 Cuando haya nuevas releases, el patron de las URLs versionadas seguira este formato:
 
 - `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/repository.pentaract-X.Y.Z.zip`
-- `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/repository.pentaract/repository.pentaract-X.Y.Z.zip`
-- `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/plugin.video.pentaract/plugin.video.pentaract-X.Y.Z.zip`
+- `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/plugin.video.pentaract-X.Y.Z.zip`
+- `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-X.Y.Z.zip`
+- `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-X.Y.Z.zip`
 
 ## Test local con Docker Compose
 
@@ -77,7 +80,7 @@ Pasos:
 2. Abre Kodi en `http://localhost:18000`
 3. En Kodi ve a `Settings > File Manager > Add source`
 4. Como fuente usa exactamente `http://repo/`
-   - Ese nombre funciona porque Kodi resuelve el servicio `repo` dentro de la red de `docker compose`
+   - Ese nombre funciona porque `make local-build` genera el feed apuntando a `http://repo/` y Kodi resuelve el servicio `repo` dentro de la red de `docker compose`
 5. Ve a `Add-ons > Install from ZIP file` e instala `repository.pentaract.zip`
 6. Después instala `Pentaract` desde `Pentaract Repository`
 7. Dentro del addon configura como URL base de `pentaract`
@@ -119,7 +122,7 @@ Notas:
 
 ## Nota sobre permisos de GitHub
 
-Si `master` esta protegida, la GitHub Action debe tener permiso para hacer push a la rama y crear tags. Si la politica del repositorio no lo permite con `GITHUB_TOKEN`, necesitarias autorizar bypass para GitHub Actions o usar un token dedicado. GitHub Pages tambien debe quedar activado sobre `/docs` para que la URL tipo fuente funcione en Kodi.
+Si `master` esta protegida, la GitHub Action debe tener permiso para hacer push a la rama y crear tags. Si la politica del repositorio no lo permite con `GITHUB_TOKEN`, necesitarias autorizar bypass para GitHub Actions o usar un token dedicado. GitHub Pages debe quedar configurado para desplegar desde `GitHub Actions`.
 
 ## Comportamiento del addon
 
