@@ -3,16 +3,44 @@
   <section id="general" label="Pentaract">
     <category id="connection" label="Conexion">
       <group id="server" label="Servidor">
-        <setting id="base_url" type="string" label="URL base" default="http://localhost:8000" />
-        <setting id="username" type="string" label="Usuario o email" default="" />
-        <setting id="password" type="string" label="Contrasena" option="hidden" default="" />
+        <setting id="base_url" type="string" label="URL base">
+          <level>0</level>
+          <default />
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="edit" format="string">
+            <heading>URL base</heading>
+          </control>
+        </setting>
+        <setting id="username" type="string" label="Usuario o email">
+          <level>0</level>
+          <default />
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="edit" format="string">
+            <heading>Usuario o email</heading>
+          </control>
+        </setting>
+        <setting id="password" type="string" label="Contrasena">
+          <level>0</level>
+          <default />
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="edit" format="string">
+            <heading>Contrasena</heading>
+            <hidden>true</hidden>
+          </control>
+        </setting>
       </group>
       <group id="library" label="Exploracion">
-        <setting id="show_non_video" type="boolean" label="Mostrar ficheros no video" default="true" />
-      </group>
-      <group id="session" label="Sesion">
-        <setting id="access_token" type="string" label="Access token" default="" visible="false" />
-        <setting id="token_expiry" type="string" label="Token expiry" default="0" visible="false" />
+        <setting id="show_non_video" type="boolean" label="Mostrar ficheros no video">
+          <level>0</level>
+          <default>true</default>
+          <control type="toggle" />
+        </setting>
       </group>
     </category>
   </section>

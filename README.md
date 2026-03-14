@@ -59,6 +59,64 @@ Cuando haya nuevas releases, el patron de las URLs versionadas seguira este form
 - `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/repository.pentaract/repository.pentaract-X.Y.Z.zip`
 - `https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/plugin.video.pentaract/plugin.video.pentaract-X.Y.Z.zip`
 
+## Test local con Docker Compose
+
+Hay dos modos de probar el addon en local, ambos sin levantar `pentaract` desde este repo.
+
+### Modo 1: probar el flujo real de instalacion
+
+Este modo levanta:
+
+- `repo`: un `nginx` sirviendo `docs/` en `http://localhost:18080`
+- `kodi`: Kodi Omega con `noVNC` en `http://localhost:18000`
+
+Pasos:
+
+1. En este repo ejecuta:
+   - `make local-up`
+2. Abre Kodi en `http://localhost:18000`
+3. En Kodi ve a `Settings > File Manager > Add source`
+4. Como fuente usa exactamente `http://repo/`
+   - Ese nombre funciona porque Kodi resuelve el servicio `repo` dentro de la red de `docker compose`
+5. Ve a `Add-ons > Install from ZIP file` e instala `repository.pentaract.zip`
+6. Después instala `Pentaract` desde `Pentaract Repository`
+7. Dentro del addon configura como URL base de `pentaract`
+
+URL base recomendada:
+
+- Si tu `pentaract` está en la misma máquina y publica el puerto `8000`: `http://host.docker.internal:8000`
+- Si está en otra máquina o en otro entorno: usa la URL real alcanzable desde el contenedor Kodi
+
+### Modo 2: desarrollo rapido montando el addon
+
+Si quieres iterar sin reinstalar el ZIP cada vez, usa también el override `docker-compose.local.dev.yml`:
+
+- `make local-dev-up`
+
+Eso monta directamente [plugin.video.pentaract](/Volumes/SUNEAST/workspace/Pentaract-kodi/plugin.video.pentaract) dentro de Kodi en `/data/.kodi/addons/plugin.video.pentaract`.
+
+Notas:
+
+- Para streams lentos desde `pentaract`, puedes subir el timeout HTTP de Kodi:
+  - `make local-kodi-http-timeout`
+  - después `make local-restart`
+- El propio addon incluye una acción en el menú raíz:
+  - `[ Aplicar ajuste de streaming recomendado ]`
+  - modifica `advancedsettings.xml` con confirmación explícita y luego pide reiniciar Kodi
+- Tras cambiar código Python del addon, reinicia Kodi para recargarlo:
+  - `make local-dev-restart`
+- Para apagar el stack local:
+  - `make local-down`
+- Para ver logs:
+  - `make local-logs`
+- Esta imagen de Kodi funciona mejor recreando el contenedor que usando `restart`; por eso `make local-restart` y `make local-dev-restart` hacen `down` + `up`
+- Los datos persistentes de Kodi quedan en `local-testing/kodi-data/`
+- `advancedsettings.xml` lo generará Kodi en el primer arranque dentro de `local-testing/kodi-data/.kodi/userdata/`
+- El contenedor expone también:
+  - webserver Kodi: `http://localhost:18081`
+  - JSON-RPC: `tcp://localhost:19090`
+  - VNC: `localhost:15900`
+
 ## Nota sobre permisos de GitHub
 
 Si `master` esta protegida, la GitHub Action debe tener permiso para hacer push a la rama y crear tags. Si la politica del repositorio no lo permite con `GITHUB_TOKEN`, necesitarias autorizar bypass para GitHub Actions o usar un token dedicado. GitHub Pages tambien debe quedar activado sobre `/docs` para que la URL tipo fuente funcione en Kodi.
