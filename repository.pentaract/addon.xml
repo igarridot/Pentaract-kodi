@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="repository.pentaract" name="Pentaract Repository" version="1.0.0" provider-name="igarridot">
+<addon id="repository.pentaract" name="Pentaract Repository" version="1.0.1" provider-name="igarridot">
   <extension point="xbmc.addon.repository" name="Pentaract Repository">
     <dir>
       <info compressed="false">https://igarridot.github.io/Pentaract-kodi/repository/addons.xml</info>
