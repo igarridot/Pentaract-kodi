@@ -1,8 +1,12 @@
+import json
 import mimetypes
 import os
 import sys
+import time
+import urllib.error
 import urllib.parse
-import xml.etree.ElementTree as ET
+import urllib.request
+import uuid
 
 import xbmc
 import xbmcaddon
@@ -19,9 +23,52 @@ PLUGIN_URL = sys.argv[0]
 PARAMS = dict(urllib.parse.parse_qsl(sys.argv[2][1:]))
 DIALOG = xbmcgui.Dialog()
 CLIENT = PentaractClient(ADDON)
-KODI_ADVANCEDSETTINGS_PATH = xbmcvfs.translatePath("special://masterprofile/advancedsettings.xml")
-RECOMMENDED_CURL_CLIENT_TIMEOUT = 120
-RECOMMENDED_CURL_LOW_SPEED_TIME = 120
+PROFILE_DIR = xbmcvfs.translatePath(ADDON.getAddonInfo("profile"))
+PROXY_SESSIONS_DIR = os.path.join(PROFILE_DIR, "proxy_sessions")
+PROXY_HOST = "127.0.0.1"
+PROXY_PORT = 57342
+PROXY_BASE_URL = "http://%s:%d" % (PROXY_HOST, PROXY_PORT)
+PROXY_HEALTH_URL = PROXY_BASE_URL + "/health"
+PROXY_START_TIMEOUT_SECONDS = 8.0
+SESSION_TTL_SECONDS = 12 * 60 * 60
+DEFAULT_BUFFER_PROFILE = "automatic"
+SERVICE_SCRIPT_PATH = xbmcvfs.translatePath(os.path.join(ADDON.getAddonInfo("path"), "service.py"))
+
+BUFFER_PROFILE_PRESETS = {
+    "automatic": {
+        "prebuffer_bytes": 16 * 1024 * 1024,
+        "request_timeout_seconds": 60,
+        "chunk_size_bytes": 262144,
+    },
+    "low_memory": {
+        "prebuffer_bytes": 8 * 1024 * 1024,
+        "request_timeout_seconds": 45,
+        "chunk_size_bytes": 131072,
+    },
+    "balanced": {
+        "prebuffer_bytes": 24 * 1024 * 1024,
+        "request_timeout_seconds": 60,
+        "chunk_size_bytes": 262144,
+    },
+    "high_bitrate": {
+        "prebuffer_bytes": 64 * 1024 * 1024,
+        "request_timeout_seconds": 120,
+        "chunk_size_bytes": 524288,
+    },
+}
+
+BUFFER_PROFILE_LABEL_IDS = {
+    "disabled": 30043,
+    "automatic": 30014,
+    "low_memory": 30015,
+    "balanced": 30016,
+    "high_bitrate": 30017,
+    "custom": 30018,
+}
+
+ALLOWED_PREBUFFER_MB = (8, 16, 32, 64, 128)
+ALLOWED_TIMEOUT_SECONDS = (30, 60, 120, 240)
+ALLOWED_CHUNK_SIZES = (65536, 131072, 262144, 524288)
 
 VIDEO_EXTENSIONS = {
     ".avi",
@@ -80,6 +127,11 @@ def notify(message, icon=xbmcgui.NOTIFICATION_INFO):
     DIALOG.notification("Pentaract", message, icon, 4000)
 
 
+def localized(string_id, fallback=""):
+    value = ADDON.getLocalizedString(string_id)
+    return value or fallback
+
+
 def show_api_error(error):
     message = error.message or "Error de comunicacion con Pentaract"
     notify(message, xbmcgui.NOTIFICATION_ERROR)
@@ -96,109 +148,151 @@ def prompt_text(heading, current_value="", hidden=False):
     ).strip()
 
 
-def ensure_xml_child(parent, tag):
-    child = parent.find(tag)
-    if child is None:
-        child = ET.SubElement(parent, tag)
-    return child
+def addon_setting_string(setting_id, legacy_ids=None):
+    value = ADDON.getSettingString(setting_id).strip()
+    if value:
+        return value
+
+    for legacy_id in legacy_ids or ():
+        legacy_value = ADDON.getSettingString(legacy_id).strip()
+        if legacy_value:
+            return legacy_value
+
+    return ""
 
 
-def indent_xml(element, level=0):
-    prefix = "\n" + "    " * level
-    if len(element):
-        if not element.text or not element.text.strip():
-            element.text = prefix + "    "
-        for child in element:
-            indent_xml(child, level + 1)
-        if not element[-1].tail or not element[-1].tail.strip():
-            element[-1].tail = prefix
-    elif level and (not element.tail or not element.tail.strip()):
-        element.tail = prefix
-
-
-def streaming_tuning_is_applied():
-    if not xbmcvfs.exists(KODI_ADVANCEDSETTINGS_PATH):
-        return False
-
+def addon_setting_int(setting_id, default, allowed_values=None, legacy_ids=None):
+    raw_value = addon_setting_string(setting_id, legacy_ids=legacy_ids)
     try:
-        root = ET.parse(KODI_ADVANCEDSETTINGS_PATH).getroot()
-    except (ET.ParseError, OSError):
-        return False
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        value = default
 
-    network = root.find("network")
-    if network is None:
-        return False
-
-    client_timeout = network.findtext("curlclienttimeout", default="0")
-    low_speed_time = network.findtext("curllowspeedtime", default="0")
-    try:
-        return (
-            int(client_timeout) >= RECOMMENDED_CURL_CLIENT_TIMEOUT
-            and int(low_speed_time) >= RECOMMENDED_CURL_LOW_SPEED_TIME
-        )
-    except ValueError:
-        return False
+    if allowed_values and value not in allowed_values:
+        return default
+    return value
 
 
-def apply_streaming_tuning():
-    if streaming_tuning_is_applied():
-        DIALOG.ok(
-            "Pentaract",
-            (
-                "Kodi ya tiene aplicado el ajuste de streaming recomendado.\n\n"
-                "Si lo acabas de cambiar y todavia no surte efecto, reinicia Kodi."
+def selected_buffer_profile():
+    profile = addon_setting_string("buffer_profile", legacy_ids=("cache_profile",))
+    if profile in ("disabled", "custom") or profile in BUFFER_PROFILE_PRESETS:
+        return profile
+    return DEFAULT_BUFFER_PROFILE
+
+
+def selected_buffer_profile_label():
+    profile = selected_buffer_profile()
+    return localized(BUFFER_PROFILE_LABEL_IDS.get(profile, 30014), profile)
+
+
+def effective_buffer_settings():
+    profile = selected_buffer_profile()
+    if profile == "disabled":
+        return profile, {}
+    if profile == "custom":
+        return profile, {
+            "prebuffer_bytes": addon_setting_int(
+                "custom_prebuffer_mb",
+                32,
+                allowed_values=ALLOWED_PREBUFFER_MB,
+                legacy_ids=("custom_cache_memorysize_mb",),
+            )
+            * 1024
+            * 1024,
+            "request_timeout_seconds": addon_setting_int(
+                "custom_request_timeout_secs",
+                60,
+                allowed_values=ALLOWED_TIMEOUT_SECONDS,
+                legacy_ids=("custom_cache_readfactor",),
             ),
-        )
-        render_root(prompt_login=False)
-        return
+            "chunk_size_bytes": addon_setting_int(
+                "custom_chunk_size_bytes",
+                262144,
+                allowed_values=ALLOWED_CHUNK_SIZES,
+                legacy_ids=("custom_cache_chunksize",),
+            ),
+        }
 
-    confirmed = DIALOG.yesno(
-        "Pentaract",
-        (
-            "Este ajuste modificara advancedsettings.xml de Kodi para aumentar los timeouts HTTP "
-            "globales y mejorar el streaming desde Pentaract.\n\n"
-            "Valores aplicados:\n"
-            "- curlclienttimeout = %d\n"
-            "- curllowspeedtime = %d\n\n"
-            "Quieres aplicarlo?"
-        )
-        % (RECOMMENDED_CURL_CLIENT_TIMEOUT, RECOMMENDED_CURL_LOW_SPEED_TIME),
+    return profile, dict(BUFFER_PROFILE_PRESETS.get(profile, BUFFER_PROFILE_PRESETS[DEFAULT_BUFFER_PROFILE]))
+
+
+def buffer_profile_summary():
+    profile_name = selected_buffer_profile_label()
+    _profile, settings = effective_buffer_settings()
+    if _profile == "disabled":
+        return "%s, URL directa al backend" % profile_name
+    return "%s, %s prebuffer, %ds timeout" % (
+        profile_name,
+        format_size(settings["prebuffer_bytes"]),
+        settings["request_timeout_seconds"],
     )
-    if not confirmed:
-        render_root(prompt_login=False)
-        return
 
+
+def direct_stream_enabled():
+    return selected_buffer_profile() == "disabled"
+
+
+def local_proxy_is_ready():
     try:
-        settings_dir = os.path.dirname(KODI_ADVANCEDSETTINGS_PATH)
-        xbmcvfs.mkdirs(settings_dir)
+        with urllib.request.urlopen(PROXY_HEALTH_URL, timeout=1) as response:
+            return response.status == 200
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError):
+        return False
 
-        if xbmcvfs.exists(KODI_ADVANCEDSETTINGS_PATH):
-            tree = ET.parse(KODI_ADVANCEDSETTINGS_PATH)
-            root = tree.getroot()
-        else:
-            root = ET.Element("advancedsettings")
-            tree = ET.ElementTree(root)
 
-        network = ensure_xml_child(root, "network")
-        ensure_xml_child(network, "curlclienttimeout").text = str(RECOMMENDED_CURL_CLIENT_TIMEOUT)
-        ensure_xml_child(network, "curllowspeedtime").text = str(RECOMMENDED_CURL_LOW_SPEED_TIME)
+def ensure_local_proxy_service():
+    if local_proxy_is_ready():
+        return True
 
-        indent_xml(root)
-        tree.write(KODI_ADVANCEDSETTINGS_PATH, encoding="utf-8", xml_declaration=False)
-    except Exception as error:
-        log("Failed to update advancedsettings.xml: %s" % error, xbmc.LOGERROR)
-        notify("No se pudo actualizar advancedsettings.xml", xbmcgui.NOTIFICATION_ERROR)
-        render_root(prompt_login=False)
+    safe_script_path = SERVICE_SCRIPT_PATH.replace("\\", "\\\\").replace("\"", "\\\"")
+    xbmc.executebuiltin("RunScript(\"%s\")" % safe_script_path)
+    deadline = time.time() + PROXY_START_TIMEOUT_SECONDS
+    while time.time() < deadline:
+        if local_proxy_is_ready():
+            return True
+        xbmc.sleep(200)
+
+    log("Local streaming proxy did not become ready", xbmc.LOGERROR)
+    return False
+
+
+def cleanup_stale_proxy_sessions():
+    if not os.path.isdir(PROXY_SESSIONS_DIR):
         return
 
-    DIALOG.ok(
-        "Pentaract",
-        (
-            "Ajuste aplicado correctamente.\n\n"
-            "Reinicia Kodi para que los nuevos timeouts HTTP entren en vigor."
-        ),
-    )
-    render_root(prompt_login=False)
+    cutoff = time.time() - SESSION_TTL_SECONDS
+    for filename in os.listdir(PROXY_SESSIONS_DIR):
+        session_path = os.path.join(PROXY_SESSIONS_DIR, filename)
+        try:
+            if not os.path.isfile(session_path):
+                continue
+            if os.path.getmtime(session_path) >= cutoff:
+                continue
+            os.remove(session_path)
+        except OSError:
+            continue
+
+
+def register_proxy_session(storage_id, path, title):
+    cleanup_stale_proxy_sessions()
+    xbmcvfs.mkdirs(PROXY_SESSIONS_DIR)
+
+    _profile, buffer_settings = effective_buffer_settings()
+    session_id = str(uuid.uuid4())
+    session_path = os.path.join(PROXY_SESSIONS_DIR, "%s.json" % session_id)
+    session = {
+        "storage_id": storage_id,
+        "path": path,
+        "title": title or os.path.basename(path or ""),
+        "mime_type": mimetypes.guess_type(path)[0] or "video/mp4",
+        "prebuffer_bytes": buffer_settings["prebuffer_bytes"],
+        "request_timeout_seconds": buffer_settings["request_timeout_seconds"],
+        "chunk_size_bytes": buffer_settings["chunk_size_bytes"],
+        "created_at": int(time.time()),
+    }
+    with open(session_path, "w", encoding="utf-8") as handle:
+        json.dump(session, handle)
+    return session_id, PROXY_BASE_URL + "/stream/" + session_id
 
 
 def prompt_for_configuration(force_server=False, force_credentials=False):
@@ -330,10 +424,9 @@ def render_root(prompt_login=False):
     xbmcplugin.setContent(HANDLE, "videos")
     xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
 
-    streaming_label = "[ Streaming optimizado ]" if streaming_tuning_is_applied() else "[ Aplicar ajuste de streaming recomendado ]"
     add_action_item("[ Configurar conexion ]", {"action": "configure"})
     add_action_item("[ Actualizar credenciales ]", {"action": "login"})
-    add_action_item(streaming_label, {"action": "optimize_streaming"})
+    add_action_item("[ Buffer local: %s ]" % buffer_profile_summary(), {"action": "buffer_settings"})
     add_action_item("[ Borrar credenciales ]", {"action": "clear_credentials"})
 
     if ensure_authenticated(interactive=prompt_login):
@@ -422,9 +515,24 @@ def play_video(storage_id, path, title):
         return
 
     try:
-        stream_url = CLIENT.build_stream_url(storage_id, path)
-    except PentaractAPIError as error:
-        show_api_error(error)
+        if direct_stream_enabled():
+            stream_url = CLIENT.build_stream_url(storage_id, path)
+        else:
+            if not ensure_local_proxy_service():
+                notify("No se pudo iniciar el proxy local de streaming.", xbmcgui.NOTIFICATION_ERROR)
+                xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+                return
+            _session_id, stream_url = register_proxy_session(storage_id, path, title)
+    except OSError as error:
+        log("Failed to register local streaming session: %s" % error, xbmc.LOGERROR)
+        notify("No se pudo preparar el stream local.", xbmcgui.NOTIFICATION_ERROR)
+        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+        return
+    except (ConfigurationError, PentaractAPIError) as error:
+        if isinstance(error, PentaractAPIError):
+            show_api_error(error)
+        else:
+            notify(str(error), xbmcgui.NOTIFICATION_ERROR)
         xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
         return
 
@@ -472,6 +580,19 @@ def clear_credentials():
     render_root(prompt_login=False)
 
 
+def open_buffer_settings():
+    DIALOG.ok(
+        "Pentaract",
+        (
+            "Los ajustes de buffer de Pentaract son locales al addon.\n\n"
+            "No modifican la cache, ni los timeouts, ni ningun ajuste global de Kodi.\n\n"
+            "Si eliges 'Directo (sin buffer)', Kodi reproducira desde la URL del backend sin usar el proxy local."
+        ),
+    )
+    ADDON.openSettings()
+    render_root(prompt_login=False)
+
+
 def route():
     action = PARAMS.get("action")
     if action == "browse":
@@ -497,8 +618,8 @@ def route():
     if action == "clear_credentials":
         clear_credentials()
         return
-    if action == "optimize_streaming":
-        apply_streaming_tuning()
+    if action in ("optimize_streaming", "buffer_settings"):
+        open_buffer_settings()
         return
     if action == "file_info":
         show_file_info()

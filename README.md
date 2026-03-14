@@ -105,12 +105,13 @@ Eso monta directamente [plugin.video.pentaract](/Volumes/SUNEAST/workspace/Penta
 
 Notas:
 
-- Para streams lentos desde `pentaract`, puedes subir el timeout HTTP de Kodi:
-  - `make local-kodi-http-timeout`
-  - después `make local-restart`
-- El propio addon incluye una acción en el menú raíz:
-  - `[ Aplicar ajuste de streaming recomendado ]`
-  - modifica `advancedsettings.xml` con confirmación explícita y luego pide reiniciar Kodi
+- El addon usa un proxy local propio para los streams de Pentaract:
+  - el buffer y sus timeouts son locales al addon
+  - no modifica `advancedsettings.xml`, `filecache.*` ni ningun ajuste global de Kodi
+- Los perfiles y el modo avanzado del buffer se configuran desde:
+  - `Ajustes del addon > Reproduccion`
+- La barra de buffer durante la reproducción también es propia del addon:
+  - se puede activar o desactivar desde `Ajustes del addon > Reproduccion > Mostrar barra de buffer`
 - Tras cambiar código Python del addon, reinicia Kodi para recargarlo:
   - `make local-dev-restart`
 - Para apagar el stack local:
@@ -119,7 +120,6 @@ Notas:
   - `make local-logs`
 - Esta imagen de Kodi funciona mejor recreando el contenedor que usando `restart`; por eso `make local-restart` y `make local-dev-restart` hacen `down` + `up`
 - Los datos persistentes de Kodi quedan en `local-testing/kodi-data/`
-- `advancedsettings.xml` lo generará Kodi en el primer arranque dentro de `local-testing/kodi-data/.kodi/userdata/`
 - El contenedor expone también:
   - webserver Kodi: `http://localhost:18081`
   - JSON-RPC: `tcp://localhost:19090`
@@ -134,6 +134,7 @@ Si `master` esta protegida, la GitHub Action debe tener permiso para hacer push 
 - Lista los storages accesibles para el usuario autenticado.
 - Permite navegar carpetas usando `/api/storages/{storageID}/files/tree/*`.
 - Los ficheros de video compatibles se reproducen en streaming usando `/api/storages/{storageID}/files/download/*?inline=1`.
+- Durante la reproducción de streams de Pentaract, el addon puede mostrar una barra de buffer basada en el prebuffer del proxy local del propio addon.
 - Los ficheros no video pueden verse como entrada informativa si la opcion correspondiente esta activa.
 
 ## Nota importante sobre videos largos

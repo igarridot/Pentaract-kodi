@@ -1,0 +1,165 @@
+# Kodi Media Center language file
+# Addon Name: Pentaract
+# Addon id: plugin.video.pentaract
+# Addon Provider: igarridot
+msgid ""
+msgstr ""
+"Project-Id-Version: XBMC Addons\n"
+"Report-Msgid-Bugs-To: igarridot\n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: OpenAI\n"
+"Language-Team: English\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en_GB\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#30000"
+msgid "Pentaract"
+msgstr ""
+
+msgctxt "#30001"
+msgid "Connection"
+msgstr ""
+
+msgctxt "#30002"
+msgid "Server"
+msgstr ""
+
+msgctxt "#30003"
+msgid "Base URL"
+msgstr ""
+
+msgctxt "#30004"
+msgid "Base URL"
+msgstr ""
+
+msgctxt "#30005"
+msgid "User or email"
+msgstr ""
+
+msgctxt "#30006"
+msgid "User or email"
+msgstr ""
+
+msgctxt "#30007"
+msgid "Password"
+msgstr ""
+
+msgctxt "#30008"
+msgid "Password"
+msgstr ""
+
+msgctxt "#30009"
+msgid "Browsing"
+msgstr ""
+
+msgctxt "#30010"
+msgid "Show non-video files"
+msgstr ""
+
+msgctxt "#30011"
+msgid "Playback"
+msgstr ""
+
+msgctxt "#30012"
+msgid "Show buffer overlay"
+msgstr ""
+
+msgctxt "#30013"
+msgid "Local buffer profile"
+msgstr ""
+
+msgctxt "#30014"
+msgid "Automatic (recommended)"
+msgstr ""
+
+msgctxt "#30015"
+msgid "Low memory"
+msgstr ""
+
+msgctxt "#30016"
+msgid "Balanced"
+msgstr ""
+
+msgctxt "#30017"
+msgid "High bitrate / 4K"
+msgstr ""
+
+msgctxt "#30018"
+msgid "Custom"
+msgstr ""
+
+msgctxt "#30043"
+msgid "Direct (no buffer)"
+msgstr ""
+
+msgctxt "#30019"
+msgid "Advanced buffering"
+msgstr ""
+
+msgctxt "#30020"
+msgid "Prebuffer size"
+msgstr ""
+
+msgctxt "#30021"
+msgid "Request timeout"
+msgstr ""
+
+msgctxt "#30022"
+msgid "Chunk size"
+msgstr ""
+
+msgctxt "#30030"
+msgid "8 MB"
+msgstr ""
+
+msgctxt "#30031"
+msgid "16 MB"
+msgstr ""
+
+msgctxt "#30032"
+msgid "32 MB"
+msgstr ""
+
+msgctxt "#30033"
+msgid "64 MB"
+msgstr ""
+
+msgctxt "#30034"
+msgid "128 MB"
+msgstr ""
+
+msgctxt "#30035"
+msgid "30 seconds"
+msgstr ""
+
+msgctxt "#30036"
+msgid "60 seconds"
+msgstr ""
+
+msgctxt "#30037"
+msgid "120 seconds"
+msgstr ""
+
+msgctxt "#30038"
+msgid "240 seconds"
+msgstr ""
+
+msgctxt "#30039"
+msgid "64 KB"
+msgstr ""
+
+msgctxt "#30040"
+msgid "128 KB"
+msgstr ""
+
+msgctxt "#30041"
+msgid "256 KB"
+msgstr ""
+
+msgctxt "#30042"
+msgid "512 KB"
+msgstr ""

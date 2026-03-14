@@ -139,6 +139,27 @@ class PentaractClient:
             query,
         )
 
+    def open_stream(self, storage_id, path, byte_range=None, inline=True, timeout=60):
+        if not self.base_url:
+            raise ConfigurationError("Falta la URL base de Pentaract.")
+
+        query = {}
+        if inline:
+            query["inline"] = "1"
+
+        request_path = "/api/storages/%s/files/download/%s" % (
+            storage_id,
+            self._encode_path(path),
+        )
+        if query:
+            request_path = "%s?%s" % (request_path, urllib.parse.urlencode(query))
+
+        return self._open_binary_request(
+            request_path,
+            byte_range=byte_range,
+            timeout=timeout,
+        )
+
     def _request(self, method, path, payload=None, include_auth=True, retry_auth=True):
         if not self.base_url:
             raise ConfigurationError("Falta la URL base de Pentaract.")
@@ -192,6 +213,57 @@ class PentaractClient:
         if not raw_data:
             return {}
         return json.loads(raw_data.decode("utf-8"))
+
+    def _open_binary_request(self, path, byte_range=None, timeout=60, retry_auth=True):
+        headers = {}
+        if byte_range:
+            headers["Range"] = byte_range
+
+        response = self._perform_binary_open(
+            path,
+            headers=headers,
+            timeout=timeout,
+            include_auth=True,
+        )
+        response_status = getattr(response, "status", None)
+        if response_status is None:
+            response_status = getattr(response, "code", 200)
+
+        if response_status != 401:
+            return response
+
+        response.close()
+        if not retry_auth:
+            raise PentaractAPIError("Credenciales no validas para reproducir el stream.", 401)
+
+        self.clear_session()
+        self.login()
+        return self._perform_binary_open(
+            path,
+            headers=headers,
+            timeout=timeout,
+            include_auth=True,
+        )
+
+    def _perform_binary_open(self, path, headers=None, timeout=60, include_auth=True):
+        request_headers = dict(headers or {})
+        if include_auth:
+            request_headers["Authorization"] = "Bearer %s" % self.ensure_token()
+
+        request = urllib.request.Request(
+            self.base_url + path,
+            headers=request_headers,
+            method="GET",
+        )
+
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            if error.code == 401:
+                return error
+            raise PentaractAPIError(self._extract_error_message(error), error.code)
+        except urllib.error.URLError as error:
+            raise PentaractAPIError(str(error.reason))
 
     def _has_valid_token(self):
         return bool(self.access_token) and self.token_expiry > int(time.time()) + 60

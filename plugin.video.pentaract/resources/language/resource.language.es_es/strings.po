@@ -1,0 +1,165 @@
+# Kodi Media Center language file
+# Addon Name: Pentaract
+# Addon id: plugin.video.pentaract
+# Addon Provider: igarridot
+msgid ""
+msgstr ""
+"Project-Id-Version: XBMC Addons\n"
+"Report-Msgid-Bugs-To: igarridot\n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: OpenAI\n"
+"Language-Team: Spanish\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es_ES\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#30000"
+msgid "Pentaract"
+msgstr "Pentaract"
+
+msgctxt "#30001"
+msgid "Connection"
+msgstr "Conexion"
+
+msgctxt "#30002"
+msgid "Server"
+msgstr "Servidor"
+
+msgctxt "#30003"
+msgid "Base URL"
+msgstr "URL base"
+
+msgctxt "#30004"
+msgid "Base URL"
+msgstr "URL base"
+
+msgctxt "#30005"
+msgid "User or email"
+msgstr "Usuario o email"
+
+msgctxt "#30006"
+msgid "User or email"
+msgstr "Usuario o email"
+
+msgctxt "#30007"
+msgid "Password"
+msgstr "Contrasena"
+
+msgctxt "#30008"
+msgid "Password"
+msgstr "Contrasena"
+
+msgctxt "#30009"
+msgid "Browsing"
+msgstr "Exploracion"
+
+msgctxt "#30010"
+msgid "Show non-video files"
+msgstr "Mostrar ficheros no video"
+
+msgctxt "#30011"
+msgid "Playback"
+msgstr "Reproduccion"
+
+msgctxt "#30012"
+msgid "Show buffer overlay"
+msgstr "Mostrar barra de buffer"
+
+msgctxt "#30013"
+msgid "Local buffer profile"
+msgstr "Perfil de buffer local"
+
+msgctxt "#30014"
+msgid "Automatic (recommended)"
+msgstr "Automatico (recomendado)"
+
+msgctxt "#30015"
+msgid "Low memory"
+msgstr "Bajo consumo"
+
+msgctxt "#30016"
+msgid "Balanced"
+msgstr "Equilibrado"
+
+msgctxt "#30017"
+msgid "High bitrate / 4K"
+msgstr "Alto bitrate / 4K"
+
+msgctxt "#30018"
+msgid "Custom"
+msgstr "Personalizado"
+
+msgctxt "#30043"
+msgid "Direct (no buffer)"
+msgstr "Directo (sin buffer)"
+
+msgctxt "#30019"
+msgid "Advanced buffering"
+msgstr "Buffer avanzado"
+
+msgctxt "#30020"
+msgid "Prebuffer size"
+msgstr "Tamano de prebuffer"
+
+msgctxt "#30021"
+msgid "Request timeout"
+msgstr "Timeout de peticion"
+
+msgctxt "#30022"
+msgid "Chunk size"
+msgstr "Tamano de chunk"
+
+msgctxt "#30030"
+msgid "8 MB"
+msgstr "8 MB"
+
+msgctxt "#30031"
+msgid "16 MB"
+msgstr "16 MB"
+
+msgctxt "#30032"
+msgid "32 MB"
+msgstr "32 MB"
+
+msgctxt "#30033"
+msgid "64 MB"
+msgstr "64 MB"
+
+msgctxt "#30034"
+msgid "128 MB"
+msgstr "128 MB"
+
+msgctxt "#30035"
+msgid "30 seconds"
+msgstr "30 segundos"
+
+msgctxt "#30036"
+msgid "60 seconds"
+msgstr "60 segundos"
+
+msgctxt "#30037"
+msgid "120 seconds"
+msgstr "120 segundos"
+
+msgctxt "#30038"
+msgid "240 seconds"
+msgstr "240 segundos"
+
+msgctxt "#30039"
+msgid "64 KB"
+msgstr "64 KB"
+
+msgctxt "#30040"
+msgid "128 KB"
+msgstr "128 KB"
+
+msgctxt "#30041"
+msgid "256 KB"
+msgstr "256 KB"
+
+msgctxt "#30042"
+msgid "512 KB"
+msgstr "512 KB"

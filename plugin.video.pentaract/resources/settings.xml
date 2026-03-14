@@ -1,45 +1,126 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <settings version="1">
-  <section id="general" label="Pentaract">
-    <category id="connection" label="Conexion">
-      <group id="server" label="Servidor">
-        <setting id="base_url" type="string" label="URL base">
+  <section id="general" label="30000">
+    <category id="connection" label="30001">
+      <group id="server" label="30002">
+        <setting id="base_url" type="string" label="30003">
           <level>0</level>
           <default />
           <constraints>
             <allowempty>true</allowempty>
           </constraints>
           <control type="edit" format="string">
-            <heading>URL base</heading>
+            <heading>30004</heading>
           </control>
         </setting>
-        <setting id="username" type="string" label="Usuario o email">
+        <setting id="username" type="string" label="30005">
           <level>0</level>
           <default />
           <constraints>
             <allowempty>true</allowempty>
           </constraints>
           <control type="edit" format="string">
-            <heading>Usuario o email</heading>
+            <heading>30006</heading>
           </control>
         </setting>
-        <setting id="password" type="string" label="Contrasena">
+        <setting id="password" type="string" label="30007">
           <level>0</level>
           <default />
           <constraints>
             <allowempty>true</allowempty>
           </constraints>
           <control type="edit" format="string">
-            <heading>Contrasena</heading>
+            <heading>30008</heading>
             <hidden>true</hidden>
           </control>
         </setting>
       </group>
-      <group id="library" label="Exploracion">
-        <setting id="show_non_video" type="boolean" label="Mostrar ficheros no video">
+      <group id="library" label="30009">
+        <setting id="show_non_video" type="boolean" label="30010">
           <level>0</level>
           <default>true</default>
           <control type="toggle" />
+        </setting>
+      </group>
+      <group id="playback" label="30011">
+        <setting id="buffer_profile" type="string" label="30013">
+          <level>0</level>
+          <default>automatic</default>
+          <constraints>
+            <options>
+              <option label="30043">disabled</option>
+              <option label="30014">automatic</option>
+              <option label="30015">low_memory</option>
+              <option label="30016">balanced</option>
+              <option label="30017">high_bitrate</option>
+              <option label="30018">custom</option>
+            </options>
+          </constraints>
+          <control type="list" format="string">
+            <heading>30013</heading>
+          </control>
+        </setting>
+        <setting id="show_buffer_overlay" type="boolean" label="30012">
+          <level>0</level>
+          <default>true</default>
+          <control type="toggle" />
+        </setting>
+      </group>
+      <group id="advanced_playback" label="30019">
+        <setting id="custom_prebuffer_mb" type="string" label="30020">
+          <level>1</level>
+          <default>32</default>
+          <constraints>
+            <options>
+              <option label="30030">8</option>
+              <option label="30031">16</option>
+              <option label="30032">32</option>
+              <option label="30033">64</option>
+              <option label="30034">128</option>
+            </options>
+          </constraints>
+          <dependencies>
+            <dependency type="visible" setting="buffer_profile" operator="is">custom</dependency>
+          </dependencies>
+          <control type="list" format="string">
+            <heading>30020</heading>
+          </control>
+        </setting>
+        <setting id="custom_request_timeout_secs" type="string" label="30021">
+          <level>1</level>
+          <default>60</default>
+          <constraints>
+            <options>
+              <option label="30035">30</option>
+              <option label="30036">60</option>
+              <option label="30037">120</option>
+              <option label="30038">240</option>
+            </options>
+          </constraints>
+          <dependencies>
+            <dependency type="visible" setting="buffer_profile" operator="is">custom</dependency>
+          </dependencies>
+          <control type="list" format="string">
+            <heading>30021</heading>
+          </control>
+        </setting>
+        <setting id="custom_chunk_size_bytes" type="string" label="30022">
+          <level>1</level>
+          <default>262144</default>
+          <constraints>
+            <options>
+              <option label="30039">65536</option>
+              <option label="30040">131072</option>
+              <option label="30041">262144</option>
+              <option label="30042">524288</option>
+            </options>
+          </constraints>
+          <dependencies>
+            <dependency type="visible" setting="buffer_profile" operator="is">custom</dependency>
+          </dependencies>
+          <control type="list" format="string">
+            <heading>30022</heading>
+          </control>
         </setting>
       </group>
     </category>
