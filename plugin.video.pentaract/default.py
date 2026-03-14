@@ -295,31 +295,33 @@ def register_proxy_session(storage_id, path, title):
     return session_id, PROXY_BASE_URL + "/stream/" + session_id
 
 
-def prompt_for_configuration(force_server=False, force_credentials=False):
-    base_url = CLIENT.base_url
-    username = CLIENT.username
-    password = CLIENT.password
+def auth_settings_snapshot():
+    return (
+        CLIENT.base_url,
+        CLIENT.username,
+        CLIENT.password,
+    )
 
-    if force_server or not base_url:
-        base_url = prompt_text("URL de Pentaract", base_url or "")
-        if not base_url:
-            return False
-        CLIENT.base_url = base_url
 
-    if force_credentials or not username:
-        username = prompt_text("Usuario o email", username)
-        if not username:
-            return False
-        CLIENT.username = username
+def open_addon_settings(show_message=True):
+    previous_settings = auth_settings_snapshot()
+    if show_message:
+        DIALOG.ok(
+            "Pentaract",
+            (
+                "Desde aqui puedes configurar la URL, las credenciales y el modo de streaming del addon.\n\n"
+                "Si quieres borrar las credenciales, deja vacios el usuario y la contrasena y guarda los cambios."
+            ),
+        )
 
-    if force_credentials or not password:
-        password = prompt_text("Contrasena", password, hidden=True)
-        if not password:
-            return False
-        CLIENT.password = password
+    ADDON.openSettings()
 
-    CLIENT.clear_session()
-    return True
+    current_settings = auth_settings_snapshot()
+    if current_settings != previous_settings:
+        CLIENT.clear_session()
+        notify("Configuracion del addon actualizada.")
+        return True
+    return False
 
 
 def ensure_authenticated(interactive=True):
@@ -329,18 +331,21 @@ def ensure_authenticated(interactive=True):
             CLIENT.ensure_token()
             return True
         except ConfigurationError:
-            if not interactive or not prompt_for_configuration():
+            if not interactive:
+                return False
+            notify("Configura la conexion desde 'Configuracion del addon'.", xbmcgui.NOTIFICATION_ERROR)
+            if not open_addon_settings(show_message=False):
                 return False
         except PentaractAPIError as error:
             if error.status == 401 and interactive:
-                notify("Credenciales invalidas. Actualizalas.", xbmcgui.NOTIFICATION_ERROR)
-                if not prompt_for_configuration(force_credentials=True):
+                notify("Credenciales invalidas. Revisa la configuracion del addon.", xbmcgui.NOTIFICATION_ERROR)
+                if not open_addon_settings(show_message=False):
                     return False
                 attempts += 1
                 continue
             if error.status == 0 and interactive:
-                notify("No se pudo conectar con Pentaract. Revisa la URL.", xbmcgui.NOTIFICATION_ERROR)
-                if not prompt_for_configuration(force_server=True):
+                notify("No se pudo conectar con Pentaract. Revisa la configuracion del addon.", xbmcgui.NOTIFICATION_ERROR)
+                if not open_addon_settings(show_message=False):
                     return False
                 attempts += 1
                 continue
@@ -424,10 +429,10 @@ def render_root(prompt_login=False):
     xbmcplugin.setContent(HANDLE, "videos")
     xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
 
-    add_action_item("[ Configurar conexion ]", {"action": "configure"})
-    add_action_item("[ Actualizar credenciales ]", {"action": "login"})
-    add_action_item("[ Buffer local: %s ]" % buffer_profile_summary(), {"action": "buffer_settings"})
-    add_action_item("[ Borrar credenciales ]", {"action": "clear_credentials"})
+    add_action_item(
+        "Configuracion del addon",
+        {"action": "addon_settings"},
+    )
 
     if ensure_authenticated(interactive=prompt_login):
         try:
@@ -559,37 +564,8 @@ def show_file_info():
         PARAMS.get("current_path", ""),
     )
 
-
-def configure():
-    if prompt_for_configuration(force_server=True, force_credentials=True):
-        if ensure_authenticated(interactive=True):
-            notify("Conexion validada correctamente.")
-    render_root(prompt_login=False)
-
-
-def refresh_login():
-    if prompt_for_configuration(force_credentials=True):
-        if ensure_authenticated(interactive=True):
-            notify("Sesion renovada.")
-    render_root(prompt_login=False)
-
-
-def clear_credentials():
-    CLIENT.clear_credentials()
-    notify("Credenciales eliminadas.")
-    render_root(prompt_login=False)
-
-
-def open_buffer_settings():
-    DIALOG.ok(
-        "Pentaract",
-        (
-            "Los ajustes de buffer de Pentaract son locales al addon.\n\n"
-            "No modifican la cache, ni los timeouts, ni ningun ajuste global de Kodi.\n\n"
-            "Si eliges 'Directo (sin buffer)', Kodi reproducira desde la URL del backend sin usar el proxy local."
-        ),
-    )
-    ADDON.openSettings()
+def open_settings_from_root():
+    open_addon_settings(show_message=True)
     render_root(prompt_login=False)
 
 
@@ -609,22 +585,13 @@ def route():
             PARAMS.get("title", ""),
         )
         return
-    if action == "configure":
-        configure()
-        return
-    if action == "login":
-        refresh_login()
-        return
-    if action == "clear_credentials":
-        clear_credentials()
-        return
-    if action in ("optimize_streaming", "buffer_settings"):
-        open_buffer_settings()
+    if action in ("addon_settings", "configure", "login", "clear_credentials", "optimize_streaming", "buffer_settings"):
+        open_settings_from_root()
         return
     if action == "file_info":
         show_file_info()
         return
-    render_root(prompt_login=True)
+    render_root(prompt_login=False)
 
 
 if __name__ == "__main__":
