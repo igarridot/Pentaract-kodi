@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.video.pentaract" name="Pentaract" version="1.0.0" provider-name="igarridot">
+  <requires>
+    <import addon="xbmc.python" version="3.0.1" />
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Kodi client for browsing and streaming video files from Pentaract.</summary>
+    <description lang="en_GB">Browse Pentaract storages, navigate folders, and stream supported video files from Kodi after logging in with your account.</description>
+    <platform>all</platform>
+    <license>Apache-2.0</license>
+    <source>https://github.com/igarridot/Pentaract-kodi</source>
+    <news>Initial Kodi 21 repository-ready release.</news>
+  </extension>
+</addon>

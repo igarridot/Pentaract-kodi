@@ -1,0 +1,116 @@
+name: Release Kodi Addons
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-master
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve next semantic version
+        id: version
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          version="$(python3 scripts/version.py next)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+          echo "Releasing ${version}"
+
+      - name: Apply release version
+        run: python3 scripts/version.py set "${{ steps.version.outputs.version }}"
+
+      - name: Validate Python files
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX=.pycache python3 -m py_compile \
+            plugin.video.pentaract/default.py \
+            plugin.video.pentaract/resources/lib/api.py \
+            scripts/build_repository.py \
+            scripts/version.py
+
+      - name: Build repository artifacts
+        run: PYTHONPYCACHEPREFIX=.pycache python3 scripts/build_repository.py
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pentaract-kodi-${{ steps.version.outputs.tag }}
+          if-no-files-found: error
+          path: |
+            repository/addons.xml
+            repository/addons.xml.md5
+            repository/zips/**/*.zip
+
+      - name: Commit release files
+        id: commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add plugin.video.pentaract/addon.xml repository.pentaract/addon.xml repository/ docs/
+
+          if git diff --cached --quiet; then
+            echo "created=false" >> "${GITHUB_OUTPUT}"
+            echo "No tracked release files changed."
+            exit 0
+          fi
+
+          git commit -m "chore(release): v${{ steps.version.outputs.version }} [skip ci]"
+          echo "created=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Create tag
+        run: |
+          set -euo pipefail
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists."
+            exit 0
+          fi
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+
+      - name: Push release commit and tag
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.commit.outputs.created }}" = "true" ]; then
+            git push origin HEAD:master
+          fi
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Publish GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "GitHub release ${{ steps.version.outputs.tag }} already exists."
+            exit 0
+          fi
+
+          gh release create "${{ steps.version.outputs.tag }}" \
+            repository/addons.xml \
+            repository/addons.xml.md5 \
+            repository/zips/plugin.video.pentaract/*.zip \
+            repository/zips/repository.pentaract/*.zip \
+            --generate-notes \
+            --title "${{ steps.version.outputs.tag }}"
