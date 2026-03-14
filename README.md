@@ -15,17 +15,17 @@ Addon para Kodi 21 que actua como cliente de `pentaract`.
 Cada merge a `master` dispara `.github/workflows/release.yml`, que hace esto automaticamente:
 
 1. Calcula la siguiente version semantica estable (`vX.Y.Z`).
-2. Actualiza la version de `plugin.video.pentaract` y `repository.pentaract`.
+2. Actualiza solo la version de `plugin.video.pentaract`.
 3. Valida la sintaxis Python.
 4. Genera `repository/addons.xml`, `repository/addons.xml.md5` y los ZIPs.
 5. Regenera `docs/` con una fuente web navegable y ZIPs estables.
 6. Sube los ZIPs y metadatos como artefacto del workflow.
 7. Sube `docs/` como artifact de GitHub Pages y lo despliega con `deploy-pages`.
-8. Hace commit solo de los `addon.xml` versionados.
+8. Hace commit solo del `addon.xml` de `plugin.video.pentaract`.
 9. Crea y publica un tag Git estandar.
 10. Publica una GitHub Release con los ZIPs y metadatos.
 
-La logica de versionado esta en `scripts/version.py`. Si no existe ningun tag semantico previo, la primera release usa la version actual de los addons. A partir de ahi, cada merge incrementa automaticamente el patch.
+La logica de versionado esta en `scripts/version.py`. Si no existe ningun tag semantico previo, la primera release usa la version actual de `plugin.video.pentaract`. A partir de ahi, cada merge incrementa automaticamente el patch del addon de video. `repository.pentaract` mantiene su version hasta que necesites cambiar manualmente el propio addon de repositorio.
 
 ## Instalacion en Kodi
 
@@ -52,15 +52,20 @@ La logica de versionado esta en `scripts/version.py`. Si no existe ningun tag se
 - Feed `addons.xml`: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml`
 - Checksum del feed: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml.md5`
 - Base de ZIPs del repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/`
-- ZIP actual del addon de repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-1.0.0.zip`
-- ZIP actual del addon de video: `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-1.0.0.zip`
+- ZIP actual del addon de repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-1.0.2.zip`
+- ZIP actual del addon de video: `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-1.0.2.zip`
 
 Cuando haya nuevas releases, el patron de las URLs versionadas seguira este formato:
 
-- `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/repository.pentaract-X.Y.Z.zip`
+- `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/repository.pentaract-A.B.C.zip`
 - `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/plugin.video.pentaract-X.Y.Z.zip`
-- `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-X.Y.Z.zip`
+- `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-A.B.C.zip`
 - `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-X.Y.Z.zip`
+
+Notas:
+
+- `plugin.video.pentaract` incrementa su version automaticamente en cada merge a `master`.
+- `repository.pentaract` solo cambia de version cuando se modifica manualmente el propio addon de repositorio.
 
 ## Test local con Docker Compose
 
