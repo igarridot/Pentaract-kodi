@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<addons>
+  <addon id="plugin.video.pentaract" name="Pentaract" version="1.0.0" provider-name="igarridot">
+    <requires>
+      <import addon="xbmc.python" version="3.0.1"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="default.py">
+      <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+      <summary lang="en_GB">Kodi client for browsing and streaming video files from Pentaract.</summary>
+      <description lang="en_GB">Browse Pentaract storages, navigate folders, and stream supported video files from Kodi after logging in with your account.</description>
+      <platform>all</platform>
+      <license>Apache-2.0</license>
+      <source>https://github.com/igarridot/Pentaract-kodi</source>
+      <news>Initial Kodi 21 repository-ready release.</news>
+    </extension>
+  </addon>
+  <addon id="repository.pentaract" name="Pentaract Repository" version="1.0.0" provider-name="igarridot">
+    <extension point="xbmc.addon.repository" name="Pentaract Repository">
+      <dir>
+        <info compressed="false">https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/addons.xml</info>
+        <checksum>https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/addons.xml.md5</checksum>
+        <datadir zip="true">https://raw.githubusercontent.com/igarridot/Pentaract-kodi/master/repository/zips/</datadir>
+      </dir>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+      <summary lang="en_GB">Kodi repository for the Pentaract client add-on.</summary>
+      <description lang="en_GB">Install the Pentaract Kodi client from a standard repository feed hosted from this GitHub repository.</description>
+      <platform>all</platform>
+      <license>Apache-2.0</license>
+      <source>https://github.com/igarridot/Pentaract-kodi</source>
+      <news>Initial repository release.</news>
+    </extension>
+  </addon>
+</addons>

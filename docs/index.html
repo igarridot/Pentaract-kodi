@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pentaract Kodi Hub</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f6f2;
+      --panel: #ffffff;
+      --text: #182126;
+      --muted: #5e6b73;
+      --link: #0a6e78;
+      --border: #d7dedf;
+    }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background: linear-gradient(180deg, #eef4f1 0%, var(--bg) 45%, #f5efe7 100%);
+      color: var(--text);
+    }
+    main {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 12px 40px rgba(24, 33, 38, 0.08);
+      margin-bottom: 18px;
+    }
+    h1, h2 {
+      margin-top: 0;
+    }
+    p, li {
+      line-height: 1.6;
+    }
+    a {
+      color: var(--link);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    code {
+      background: #eef2f3;
+      border-radius: 6px;
+      padding: 0.15em 0.4em;
+    }
+    ul, ol {
+      padding-left: 22px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>Pentaract Kodi Hub</h1>
+      <p>Fuente web para instalar el repositorio y el addon de Pentaract en Kodi, al estilo de los tutoriales con "Add source".</p>
+      <p><strong>Fuente para Kodi File Manager:</strong> <code>https://igarridot.github.io/Pentaract-kodi/</code></p>
+    </section>
+    <section class="panel">
+      <h2>Descargas rápidas</h2>
+      <ul>
+        <li><a href="repository.pentaract.zip">repository.pentaract.zip</a> - alias estable al ZIP actual del repositorio.</li>
+        <li><a href="plugin.video.pentaract.zip">plugin.video.pentaract.zip</a> - alias estable al ZIP actual del addon.</li>
+        <li><a href="repository/zips/repository.pentaract/repository.pentaract-1.0.0.zip">repository.pentaract-1.0.0.zip</a></li>
+        <li><a href="repository/zips/plugin.video.pentaract/plugin.video.pentaract-1.0.0.zip">plugin.video.pentaract-1.0.0.zip</a></li>
+      </ul>
+    </section>
+    <section class="panel">
+      <h2>Instalación en Kodi</h2>
+      <ol>
+        <li>Ve a <strong>Settings &gt; File Manager &gt; Add source</strong>.</li>
+        <li>Introduce exactamente <code>https://igarridot.github.io/Pentaract-kodi/</code> y ponle un nombre, por ejemplo <code>Pentaract</code>.</li>
+        <li>Ve a <strong>Add-ons &gt; Install from ZIP file</strong> y entra en la fuente que acabas de crear.</li>
+        <li>Selecciona <a href="repository.pentaract.zip"><code>repository.pentaract.zip</code></a>. Es la opción recomendada porque permite actualizaciones automáticas.</li>
+        <li>Después ve a <strong>Install from repository &gt; Pentaract Repository &gt; Video add-ons &gt; Pentaract</strong>.</li>
+      </ol>
+      <p>Si instalas <a href="plugin.video.pentaract.zip"><code>plugin.video.pentaract.zip</code></a> directamente, el addon se instala, pero no seguirá el flujo normal de autoactualización mediante repositorio.</p>
+    </section>
+    <section class="panel">
+      <h2>Publicación</h2>
+      <p>El repositorio fuente está en <a href="https://github.com/igarridot/Pentaract-kodi">https://github.com/igarridot/Pentaract-kodi</a>. Las releases versionadas siguen publicándose en GitHub Releases y en el feed de Kodi dentro de <a href="repository/addons.xml"><code>repository/addons.xml</code></a>.</p>
+    </section>
+  </main>
+</body>
+</html>
