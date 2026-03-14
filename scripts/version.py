@@ -7,10 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ADDON_XML_FILES = [
-    ROOT / "plugin.video.pentaract" / "addon.xml",
-    ROOT / "repository.pentaract" / "addon.xml",
-]
+PLUGIN_ADDON_XML_FILE = ROOT / "plugin.video.pentaract" / "addon.xml"
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 ADDON_VERSION_RE = re.compile(r'(<addon\b[^>]*\bversion=")([^"]+)(")', re.MULTILINE)
@@ -25,13 +22,9 @@ def read_addon_version(path):
 
 
 def current_version():
-    versions = {read_addon_version(path) for path in ADDON_XML_FILES}
-    if len(versions) != 1:
-        raise ValueError("Addon versions are not aligned: %s" % ", ".join(sorted(versions)))
-
-    version = versions.pop()
+    version = read_addon_version(PLUGIN_ADDON_XML_FILE)
     if not SEMVER_RE.match(version):
-        raise ValueError("Current addon version is not semantic: %s" % version)
+        raise ValueError("Current plugin version is not semantic: %s" % version)
     return version
 
 
@@ -67,12 +60,11 @@ def set_version(version):
     if not SEMVER_RE.match(version):
         raise ValueError("Invalid semantic version: %s" % version)
 
-    for path in ADDON_XML_FILES:
-        text = path.read_text(encoding="utf-8")
-        updated, replacements = ADDON_VERSION_RE.subn(r"\g<1>%s\g<3>" % version, text, count=1)
-        if replacements != 1:
-            raise ValueError("Failed to update version in %s" % path)
-        path.write_text(updated, encoding="utf-8")
+    text = PLUGIN_ADDON_XML_FILE.read_text(encoding="utf-8")
+    updated, replacements = ADDON_VERSION_RE.subn(r"\g<1>%s\g<3>" % version, text, count=1)
+    if replacements != 1:
+        raise ValueError("Failed to update version in %s" % PLUGIN_ADDON_XML_FILE)
+    PLUGIN_ADDON_XML_FILE.write_text(updated, encoding="utf-8")
 
 
 def main(argv):
