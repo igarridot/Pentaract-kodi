@@ -267,6 +267,7 @@ class ProxyRuntime:
                 session["path"],
                 byte_range=byte_range,
                 timeout=timeout,
+                download_id=session_id,
             )
         except ConfigurationError as error:
             handler.send_error(503, str(error))

@@ -81,6 +81,38 @@ class DefaultModuleTests(unittest.TestCase):
         self.assertEqual(99, saved["session"]["created_at"])
         self.assertEqual([True], cleanup_calls)
 
+    def test_playback_stream_url_direct_mode_uses_download_id(self):
+        module, _addon, _profile_dir = self.load_default_module(settings={"buffer_profile": "disabled"})
+        build_calls = []
+
+        class FakeClient:
+            def build_stream_url(self, storage_id, path, download_id=None):
+                build_calls.append(
+                    {
+                        "storage_id": storage_id,
+                        "path": path,
+                        "download_id": download_id,
+                    }
+                )
+                return "http://backend/stream"
+
+        module.CLIENT = FakeClient()
+        module.uuid.uuid4 = lambda: "stream-123"
+
+        stream_url = module.playback_stream_url("storage-7", "Videos/movie.mkv", "Movie")
+
+        self.assertEqual("http://backend/stream", stream_url)
+        self.assertEqual(
+            [
+                {
+                    "storage_id": "storage-7",
+                    "path": "Videos/movie.mkv",
+                    "download_id": "stream-123",
+                }
+            ],
+            build_calls,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

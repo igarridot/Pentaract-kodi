@@ -124,14 +124,15 @@ class PentaractClient:
             "/api/storages/%s/files/tree/%s" % (storage_id, encoded_path),
         )
 
-    def build_stream_url(self, storage_id, path):
+    def build_stream_url(self, storage_id, path, download_id=None):
         token = self.ensure_token()
-        query = urllib.parse.urlencode(
-            {
-                "inline": "1",
-                "access_token": token,
-            }
-        )
+        query_params = {
+            "inline": "1",
+            "access_token": token,
+        }
+        if download_id:
+            query_params["download_id"] = download_id
+        query = urllib.parse.urlencode(query_params)
         return "%s/api/storages/%s/files/download/%s?%s" % (
             self.base_url,
             storage_id,
@@ -139,13 +140,15 @@ class PentaractClient:
             query,
         )
 
-    def open_stream(self, storage_id, path, byte_range=None, inline=True, timeout=60):
+    def open_stream(self, storage_id, path, byte_range=None, inline=True, timeout=60, download_id=None):
         if not self.base_url:
             raise ConfigurationError("Falta la URL base de Pentaract.")
 
         query = {}
         if inline:
             query["inline"] = "1"
+        if download_id:
+            query["download_id"] = download_id
 
         request_path = "/api/storages/%s/files/download/%s" % (
             storage_id,
