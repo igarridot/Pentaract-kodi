@@ -1,5 +1,4 @@
 import json
-import os
 import socket
 import threading
 import time
@@ -10,19 +9,19 @@ from urllib.parse import urlparse
 import xbmc
 import xbmcaddon
 import xbmcgui
-import xbmcvfs
 
 from resources.lib.api import ConfigurationError, PentaractAPIError, PentaractClient
+from resources.lib.proxy import (
+    PROXY_HOST as LISTEN_HOST,
+    PROXY_PORT as LISTEN_PORT,
+    cleanup_proxy_sessions,
+    load_proxy_session,
+)
 
 
 ADDON = xbmcaddon.Addon("plugin.video.pentaract")
 CLIENT = PentaractClient(ADDON)
-PROFILE_DIR = xbmcvfs.translatePath(ADDON.getAddonInfo("profile"))
-SESSIONS_DIR = os.path.join(PROFILE_DIR, "proxy_sessions")
-LISTEN_HOST = "127.0.0.1"
-LISTEN_PORT = 57342
 POLL_INTERVAL_SECONDS = 0.2
-SESSION_TTL_SECONDS = 12 * 60 * 60
 IDLE_EXIT_SECONDS = 15 * 60
 STARTUP_BUFFER_MAX_BYTES = 64 * 1024 * 1024
 REBUFFER_TARGET_MAX_BYTES = 16 * 1024 * 1024
@@ -110,8 +109,7 @@ class ProxyRuntime:
         self._server = None
 
     def start(self):
-        xbmcvfs.mkdirs(SESSIONS_DIR)
-        self.cleanup_stale_sessions()
+        cleanup_proxy_sessions()
 
         try:
             self._server = ProxyServer((LISTEN_HOST, LISTEN_PORT), self)
@@ -124,7 +122,7 @@ class ProxyRuntime:
 
         while not self.monitor.abortRequested():
             self.update_overlay()
-            self.cleanup_stale_sessions()
+            cleanup_proxy_sessions()
             if self.is_idle():
                 log("Local proxy idle timeout reached; shutting down.")
                 break
@@ -168,38 +166,8 @@ class ProxyRuntime:
         self._dialog.close()
         self._dialog_visible = False
 
-    def cleanup_stale_sessions(self):
-        cutoff = time.time() - SESSION_TTL_SECONDS
-        try:
-            filenames = os.listdir(SESSIONS_DIR)
-        except OSError:
-            return
-
-        for filename in filenames:
-            session_path = os.path.join(SESSIONS_DIR, filename)
-            try:
-                if not os.path.isfile(session_path):
-                    continue
-                if os.path.getmtime(session_path) >= cutoff:
-                    continue
-                os.remove(session_path)
-            except OSError:
-                continue
-
-    def session_path(self, session_id):
-        return os.path.join(SESSIONS_DIR, "%s.json" % session_id)
-
     def load_session(self, session_id):
-        session_path = self.session_path(session_id)
-        try:
-            with open(session_path, "r", encoding="utf-8") as handle:
-                session = json.load(handle)
-        except (OSError, ValueError):
-            return None
-
-        if not isinstance(session, dict):
-            return None
-        return session
+        return load_proxy_session(session_id)
 
     def handle_http_request(self, handler, send_body):
         parsed = urlparse(handler.path)

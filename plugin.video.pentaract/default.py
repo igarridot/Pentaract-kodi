@@ -1,4 +1,3 @@
-import json
 import mimetypes
 import os
 import sys
@@ -15,6 +14,13 @@ import xbmcplugin
 import xbmcvfs
 
 from resources.lib.api import ConfigurationError, PentaractAPIError, PentaractClient
+from resources.lib.proxy import (
+    PROXY_BASE_URL,
+    PROXY_HEALTH_URL,
+    PROXY_START_TIMEOUT_SECONDS,
+    cleanup_proxy_sessions,
+    save_proxy_session,
+)
 
 
 ADDON = xbmcaddon.Addon()
@@ -23,14 +29,6 @@ PLUGIN_URL = sys.argv[0]
 PARAMS = dict(urllib.parse.parse_qsl(sys.argv[2][1:]))
 DIALOG = xbmcgui.Dialog()
 CLIENT = PentaractClient(ADDON)
-PROFILE_DIR = xbmcvfs.translatePath(ADDON.getAddonInfo("profile"))
-PROXY_SESSIONS_DIR = os.path.join(PROFILE_DIR, "proxy_sessions")
-PROXY_HOST = "127.0.0.1"
-PROXY_PORT = 57342
-PROXY_BASE_URL = "http://%s:%d" % (PROXY_HOST, PROXY_PORT)
-PROXY_HEALTH_URL = PROXY_BASE_URL + "/health"
-PROXY_START_TIMEOUT_SECONDS = 8.0
-SESSION_TTL_SECONDS = 12 * 60 * 60
 DEFAULT_BUFFER_PROFILE = "automatic"
 SERVICE_SCRIPT_PATH = xbmcvfs.translatePath(os.path.join(ADDON.getAddonInfo("path"), "service.py"))
 
@@ -136,17 +134,6 @@ def show_api_error(error):
     message = error.message or "Error de comunicacion con Pentaract"
     notify(message, xbmcgui.NOTIFICATION_ERROR)
     log("API error (%s): %s" % (error.status, message), xbmc.LOGERROR)
-
-
-def prompt_text(heading, current_value="", hidden=False):
-    option = xbmcgui.ALPHANUM_HIDE_INPUT if hidden else 0
-    return DIALOG.input(
-        heading,
-        defaultt=current_value,
-        type=xbmcgui.INPUT_ALPHANUM,
-        option=option,
-    ).strip()
-
 
 def addon_setting_string(setting_id, legacy_ids=None):
     value = ADDON.getSettingString(setting_id).strip()
@@ -256,31 +243,10 @@ def ensure_local_proxy_service():
     return False
 
 
-def cleanup_stale_proxy_sessions():
-    if not os.path.isdir(PROXY_SESSIONS_DIR):
-        return
-
-    cutoff = time.time() - SESSION_TTL_SECONDS
-    for filename in os.listdir(PROXY_SESSIONS_DIR):
-        session_path = os.path.join(PROXY_SESSIONS_DIR, filename)
-        try:
-            if not os.path.isfile(session_path):
-                continue
-            if os.path.getmtime(session_path) >= cutoff:
-                continue
-            os.remove(session_path)
-        except OSError:
-            continue
-
-
 def register_proxy_session(storage_id, path, title):
-    cleanup_stale_proxy_sessions()
-    xbmcvfs.mkdirs(PROXY_SESSIONS_DIR)
-
-    _profile, buffer_settings = effective_buffer_settings()
     session_id = str(uuid.uuid4())
-    session_path = os.path.join(PROXY_SESSIONS_DIR, "%s.json" % session_id)
-    session = {
+    _profile, buffer_settings = effective_buffer_settings()
+    save_proxy_session(session_id, {
         "storage_id": storage_id,
         "path": path,
         "title": title or os.path.basename(path or ""),
@@ -289,9 +255,8 @@ def register_proxy_session(storage_id, path, title):
         "request_timeout_seconds": buffer_settings["request_timeout_seconds"],
         "chunk_size_bytes": buffer_settings["chunk_size_bytes"],
         "created_at": int(time.time()),
-    }
-    with open(session_path, "w", encoding="utf-8") as handle:
-        json.dump(session, handle)
+    })
+    cleanup_proxy_sessions()
     return session_id, PROXY_BASE_URL + "/stream/" + session_id
 
 
@@ -355,64 +320,91 @@ def ensure_authenticated(interactive=True):
     return False
 
 
-def add_directory_item(label, params, icon="DefaultFolder.png"):
+def begin_directory(category):
+    xbmcplugin.setPluginCategory(HANDLE, category)
+    xbmcplugin.setContent(HANDLE, "videos")
+    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
+
+
+def end_directory():
+    xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
+
+
+def add_item(label, params, folder, icon, mime_type=None, info=None, properties=None):
     list_item = xbmcgui.ListItem(label=label)
     list_item.setArt({"icon": icon, "thumb": icon})
-    xbmcplugin.addDirectoryItem(HANDLE, plugin_url(params), list_item, True)
+    if mime_type:
+        list_item.setMimeType(mime_type)
+        list_item.setContentLookup(False)
+    if info:
+        list_item.setInfo("video", info)
+    for key, value in (properties or {}).items():
+        list_item.setProperty(key, value)
+    xbmcplugin.addDirectoryItem(HANDLE, plugin_url(params), list_item, folder)
 
 
-def add_action_item(label, params, icon="DefaultAddonProgram.png"):
-    list_item = xbmcgui.ListItem(label=label)
-    list_item.setArt({"icon": icon, "thumb": icon})
-    xbmcplugin.addDirectoryItem(HANDLE, plugin_url(params), list_item, True)
+def browse_params(storage_id, storage_name, path):
+    return {
+        "action": "browse",
+        "storage_id": storage_id,
+        "storage_name": storage_name,
+        "path": path,
+    }
 
 
-def add_playable_item(storage_id, element, current_path):
-    label = "%s  [%s]" % (element["name"], format_size(element.get("size", 0)))
-    url = plugin_url(
+def file_info_params(storage_id, storage_name, element, current_path):
+    return {
+        "action": "file_info",
+        "storage_id": storage_id,
+        "storage_name": storage_name,
+        "path": element["path"],
+        "name": element["name"],
+        "size": str(element.get("size", 0)),
+        "current_path": current_path,
+    }
+
+
+def file_label(element):
+    return "%s  [%s]" % (element["name"], format_size(element.get("size", 0)))
+
+
+def add_storage_item(storage):
+    add_item(
+        storage_label(storage),
+        browse_params(storage["id"], storage["name"], ""),
+        True,
+        "DefaultFolder.png",
+    )
+
+
+def add_navigation_item(label, params, icon="DefaultFolder.png"):
+    add_item(label, params, True, icon)
+
+
+def add_playable_file_item(storage_id, element):
+    add_item(
+        file_label(element),
         {
             "action": "play",
             "storage_id": storage_id,
             "path": element["path"],
             "title": element["name"],
-        }
-    )
-    list_item = xbmcgui.ListItem(label=label)
-    mime_type = mimetypes.guess_type(element["path"])[0] or "video/mp4"
-    list_item.setMimeType(mime_type)
-    list_item.setContentLookup(False)
-    list_item.setProperty("IsPlayable", "true")
-    list_item.setInfo(
-        "video",
-        {
-            "title": element["name"],
-            "size": int(element.get("size", 0)),
         },
+        False,
+        "DefaultVideo.png",
+        mime_type=mimetypes.guess_type(element["path"])[0] or "video/mp4",
+        info={"title": element["name"], "size": int(element.get("size", 0))},
+        properties={"IsPlayable": "true"},
     )
-    list_item.setArt({"icon": "DefaultVideo.png", "thumb": "DefaultVideo.png"})
-    xbmcplugin.addDirectoryItem(HANDLE, url, list_item, False)
 
 
-def add_file_info_item(storage_id, storage_name, element, current_path):
-    label = "%s  [%s]" % (element["name"], format_size(element.get("size", 0)))
-    list_item = xbmcgui.ListItem(label=label)
-    list_item.setInfo("video", {"title": element["name"]})
-    list_item.setArt({"icon": "DefaultFile.png", "thumb": "DefaultFile.png"})
-    xbmcplugin.addDirectoryItem(
-        HANDLE,
-        plugin_url(
-            {
-                "action": "file_info",
-                "storage_id": storage_id,
-                "storage_name": storage_name,
-                "path": element["path"],
-                "name": element["name"],
-                "size": str(element.get("size", 0)),
-                "current_path": current_path,
-            }
-        ),
-        list_item,
+def add_info_file_item(storage_id, storage_name, element, current_path):
+    add_item(
+        file_label(element),
+        file_info_params(storage_id, storage_name, element, current_path),
         True,
+        "DefaultFile.png",
+        info={"title": element["name"]},
     )
 
 
@@ -425,13 +417,11 @@ def storage_label(storage):
 
 
 def render_root(prompt_login=False):
-    xbmcplugin.setPluginCategory(HANDLE, "Pentaract")
-    xbmcplugin.setContent(HANDLE, "videos")
-    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
-
-    add_action_item(
+    begin_directory("Pentaract")
+    add_navigation_item(
         "Configuracion del addon",
         {"action": "addon_settings"},
+        icon="DefaultAddonProgram.png",
     )
 
     if ensure_authenticated(interactive=prompt_login):
@@ -442,47 +432,32 @@ def render_root(prompt_login=False):
             storages = []
 
         for storage in sorted(storages, key=lambda item: item.get("name", "").lower()):
-            add_directory_item(
-                storage_label(storage),
-                {
-                    "action": "browse",
-                    "storage_id": storage["id"],
-                    "storage_name": storage["name"],
-                    "path": "",
-                },
-            )
+            add_storage_item(storage)
 
         if not storages:
             notify("No hay storages accesibles para este usuario.")
 
-    xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
+    end_directory()
 
 
 def render_directory(storage_id, storage_name, path):
-    xbmcplugin.setPluginCategory(HANDLE, storage_name or "Pentaract")
-    xbmcplugin.setContent(HANDLE, "videos")
-    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
+    begin_directory(storage_name or "Pentaract")
 
     if not ensure_authenticated(interactive=True):
-        xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
+        end_directory()
         return
 
     try:
         elements = CLIENT.list_directory(storage_id, path)
     except PentaractAPIError as error:
         show_api_error(error)
-        xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
+        end_directory()
         return
 
     if path:
-        add_directory_item(
+        add_navigation_item(
             "..",
-            {
-                "action": "browse",
-                "storage_id": storage_id,
-                "storage_name": storage_name,
-                "path": parent_path(path),
-            },
+            browse_params(storage_id, storage_name, parent_path(path)),
             icon="DefaultFolderBack.png",
         )
 
@@ -497,48 +472,49 @@ def render_directory(storage_id, storage_name, path):
     for element in elements:
         if element.get("is_file"):
             if is_video_path(element["path"]):
-                add_playable_item(storage_id, element, path)
+                add_playable_file_item(storage_id, element)
             elif ADDON.getSettingBool("show_non_video"):
-                add_file_info_item(storage_id, storage_name, element, path)
+                add_info_file_item(storage_id, storage_name, element, path)
         else:
-            add_directory_item(
+            add_navigation_item(
                 element["name"],
-                {
-                    "action": "browse",
-                    "storage_id": storage_id,
-                    "storage_name": storage_name,
-                    "path": element["path"],
-                },
+                browse_params(storage_id, storage_name, element["path"]),
             )
 
-    xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
+    end_directory()
+
+
+def clear_resolved_url():
+    xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+
+
+def playback_stream_url(storage_id, path, title):
+    if direct_stream_enabled():
+        return CLIENT.build_stream_url(storage_id, path)
+    if not ensure_local_proxy_service():
+        raise OSError("No se pudo iniciar el proxy local de streaming.")
+    _session_id, stream_url = register_proxy_session(storage_id, path, title)
+    return stream_url
 
 
 def play_video(storage_id, path, title):
     if not ensure_authenticated(interactive=True):
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+        clear_resolved_url()
         return
 
     try:
-        if direct_stream_enabled():
-            stream_url = CLIENT.build_stream_url(storage_id, path)
-        else:
-            if not ensure_local_proxy_service():
-                notify("No se pudo iniciar el proxy local de streaming.", xbmcgui.NOTIFICATION_ERROR)
-                xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
-                return
-            _session_id, stream_url = register_proxy_session(storage_id, path, title)
+        stream_url = playback_stream_url(storage_id, path, title)
     except OSError as error:
         log("Failed to register local streaming session: %s" % error, xbmc.LOGERROR)
-        notify("No se pudo preparar el stream local.", xbmcgui.NOTIFICATION_ERROR)
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+        notify(str(error), xbmcgui.NOTIFICATION_ERROR)
+        clear_resolved_url()
         return
     except (ConfigurationError, PentaractAPIError) as error:
         if isinstance(error, PentaractAPIError):
             show_api_error(error)
         else:
             notify(str(error), xbmcgui.NOTIFICATION_ERROR)
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+        clear_resolved_url()
         return
 
     list_item = xbmcgui.ListItem(path=stream_url)
@@ -569,29 +545,39 @@ def open_settings_from_root():
     render_root(prompt_login=False)
 
 
+def browse_from_params():
+    render_directory(
+        PARAMS.get("storage_id", ""),
+        PARAMS.get("storage_name", ""),
+        PARAMS.get("path", ""),
+    )
+
+
+def play_from_params():
+    play_video(
+        PARAMS.get("storage_id", ""),
+        PARAMS.get("path", ""),
+        PARAMS.get("title", ""),
+    )
+
+
 def route():
-    action = PARAMS.get("action")
-    if action == "browse":
-        render_directory(
-            PARAMS.get("storage_id", ""),
-            PARAMS.get("storage_name", ""),
-            PARAMS.get("path", ""),
-        )
+    action_handlers = {
+        "addon_settings": open_settings_from_root,
+        "buffer_settings": open_settings_from_root,
+        "browse": browse_from_params,
+        "clear_credentials": open_settings_from_root,
+        "configure": open_settings_from_root,
+        "file_info": show_file_info,
+        "login": open_settings_from_root,
+        "optimize_streaming": open_settings_from_root,
+        "play": play_from_params,
+    }
+    handler = action_handlers.get(PARAMS.get("action"))
+    if handler is None:
+        render_root(prompt_login=False)
         return
-    if action == "play":
-        play_video(
-            PARAMS.get("storage_id", ""),
-            PARAMS.get("path", ""),
-            PARAMS.get("title", ""),
-        )
-        return
-    if action in ("addon_settings", "configure", "login", "clear_credentials", "optimize_streaming", "buffer_settings"):
-        open_settings_from_root()
-        return
-    if action == "file_info":
-        show_file_info()
-        return
-    render_root(prompt_login=False)
+    handler()
 
 
 if __name__ == "__main__":
