@@ -100,13 +100,14 @@ class ServiceModuleTests(unittest.TestCase):
         client_calls = []
 
         class FakeClient:
-            def open_stream(self, storage_id, path, byte_range=None, timeout=60):
+            def open_stream(self, storage_id, path, byte_range=None, timeout=60, download_id=None):
                 client_calls.append(
                     {
                         "storage_id": storage_id,
                         "path": path,
                         "byte_range": byte_range,
                         "timeout": timeout,
+                        "download_id": download_id,
                     }
                 )
                 return remote_response
@@ -137,6 +138,7 @@ class ServiceModuleTests(unittest.TestCase):
                     "path": "Movies/movie.mp4",
                     "byte_range": "bytes=1048576-",
                     "timeout": 45,
+                    "download_id": "session-1",
                 }
             ],
             client_calls,

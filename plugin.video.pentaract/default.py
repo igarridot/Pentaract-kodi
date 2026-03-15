@@ -494,7 +494,7 @@ def clear_resolved_url():
 
 def playback_stream_url(storage_id, path, title):
     if direct_stream_enabled():
-        return CLIENT.build_stream_url(storage_id, path)
+        return CLIENT.build_stream_url(storage_id, path, download_id=str(uuid.uuid4()))
     if not ensure_local_proxy_service():
         raise OSError("No se pudo iniciar el proxy local de streaming.")
     _session_id, stream_url = register_proxy_session(storage_id, path, title)
