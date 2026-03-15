@@ -9,6 +9,10 @@
   <extension point="xbmc.addon.metadata">
     <summary lang="en_GB">Kodi client for browsing and streaming video files from Pentaract.</summary>
     <description lang="en_GB">Browse Pentaract storages, navigate folders, and stream supported video files from Kodi after logging in with your account.</description>
+    <assets>
+      <icon>resources/media/icon.png</icon>
+      <fanart>resources/media/fanart.png</fanart>
+    </assets>
     <platform>all</platform>
     <license>Apache-2.0</license>
     <source>https://github.com/igarridot/Pentaract-kodi</source>

@@ -10,6 +10,10 @@
   <extension point="xbmc.addon.metadata">
     <summary lang="en_GB">Kodi repository for the Pentaract client add-on.</summary>
     <description lang="en_GB">Install the Pentaract Kodi client from a standard repository feed hosted from this GitHub repository.</description>
+    <assets>
+      <icon>resources/media/icon.png</icon>
+      <fanart>resources/media/fanart.png</fanart>
+    </assets>
     <platform>all</platform>
     <license>Apache-2.0</license>
     <source>https://github.com/igarridot/Pentaract-kodi</source>
