@@ -33,6 +33,43 @@ def log(message, level=xbmc.LOGINFO):
     xbmc.log("[plugin.video.pentaract.service] %s" % message, level)
 
 
+def compute_buffer_plan(content_length, prebuffer_bytes, chunk_size):
+    normalized_chunk_size = max(int(chunk_size or 0), 1)
+    normalized_prebuffer_bytes = max(int(prebuffer_bytes or 0), 0)
+    normalized_content_length = max(int(content_length or 0), 0)
+
+    queue_size = max(
+        4,
+        int(max(normalized_prebuffer_bytes, normalized_chunk_size) / float(normalized_chunk_size)) + 2,
+    )
+    network_read_size = min(max(normalized_chunk_size, MIN_NETWORK_READ_BYTES), NETWORK_READ_MAX_BYTES)
+
+    target_bytes = normalized_prebuffer_bytes
+    if normalized_content_length > 0:
+        target_bytes = min(normalized_prebuffer_bytes, normalized_content_length)
+    target_bytes = max(target_bytes, normalized_chunk_size * 4)
+    target_bytes = min(target_bytes, STARTUP_BUFFER_MAX_BYTES)
+    if target_bytes <= 0:
+        target_bytes = normalized_chunk_size
+
+    rebuffer_target_bytes = min(
+        target_bytes,
+        max(
+            normalized_chunk_size * 4,
+            min(max(normalized_prebuffer_bytes // 2, normalized_chunk_size * 4), REBUFFER_TARGET_MAX_BYTES),
+        ),
+    )
+    if rebuffer_target_bytes <= 0:
+        rebuffer_target_bytes = normalized_chunk_size * 2
+
+    return {
+        "queue_size": queue_size,
+        "network_read_size": network_read_size,
+        "target_bytes": target_bytes,
+        "rebuffer_target_bytes": rebuffer_target_bytes,
+    }
+
+
 class BufferState:
     def __init__(self):
         self._lock = threading.Lock()
@@ -290,8 +327,13 @@ class ProxyRuntime:
         chunk_size,
         max_initial_wait_seconds,
     ):
-        queue = Queue(maxsize=max(4, int(max(prebuffer_bytes, chunk_size) / max(chunk_size, 1)) + 2))
-        network_read_size = min(max(chunk_size, MIN_NETWORK_READ_BYTES), NETWORK_READ_MAX_BYTES)
+        buffer_plan = compute_buffer_plan(
+            remote_response.headers.get("Content-Length"),
+            prebuffer_bytes,
+            chunk_size,
+        )
+        queue = Queue(maxsize=buffer_plan["queue_size"])
+        network_read_size = buffer_plan["network_read_size"]
         queued_bytes = [0]
         producer_done = [False]
         producer_error = [None]
@@ -345,21 +387,8 @@ class ProxyRuntime:
         producer_thread = threading.Thread(target=producer, name="pentaract-stream-producer", daemon=True)
         producer_thread.start()
 
-        content_length = self._safe_int(remote_response.headers.get("Content-Length"), 0)
-        target_bytes = prebuffer_bytes
-        if content_length > 0:
-            target_bytes = min(prebuffer_bytes, content_length)
-        target_bytes = max(target_bytes, chunk_size * 4)
-        target_bytes = min(target_bytes, STARTUP_BUFFER_MAX_BYTES)
-        if target_bytes <= 0:
-            target_bytes = chunk_size
-
-        rebuffer_target_bytes = min(
-            target_bytes,
-            max(chunk_size * 4, min(max(prebuffer_bytes // 2, chunk_size * 4), REBUFFER_TARGET_MAX_BYTES)),
-        )
-        if rebuffer_target_bytes <= 0:
-            rebuffer_target_bytes = chunk_size * 2
+        target_bytes = buffer_plan["target_bytes"]
+        rebuffer_target_bytes = buffer_plan["rebuffer_target_bytes"]
 
         log(
             "Initial buffer target=%s bytes, rebuffer target=%s bytes, network_read=%s bytes"

@@ -1,0 +1,48 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Python files
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX=.pycache python3 -m py_compile \
+            plugin.video.pentaract/default.py \
+            plugin.video.pentaract/service.py \
+            plugin.video.pentaract/resources/lib/api.py \
+            plugin.video.pentaract/resources/lib/proxy.py \
+            scripts/build_repository.py \
+            scripts/version.py
+
+      - name: Run addon tests
+        run: make test
+
+      - name: Smoke build repository artifacts
+        run: PYTHONPYCACHEPREFIX=.pycache python3 scripts/build_repository.py

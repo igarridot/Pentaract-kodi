@@ -1,4 +1,4 @@
-.PHONY: help local-build local-up local-dev-up local-down local-restart local-dev-restart local-logs local-ps local-kodi-http-timeout
+.PHONY: help test local-build local-up local-dev-up local-down local-restart local-dev-restart local-logs local-ps local-kodi-http-timeout
 
 COMPOSE_LOCAL = docker compose -f docker-compose.local.yml
 COMPOSE_LOCAL_DEV = docker compose -f docker-compose.local.yml -f docker-compose.local.dev.yml
@@ -7,6 +7,7 @@ LOCAL_REPOSITORY_BASE_URL = http://repo/
 help:
 	@printf '%s\n' \
 		'Targets disponibles:' \
+		'  make test              Ejecuta tests unitarios del addon' \
 		'  make local-build       Regenera repository/ y docs/' \
 		'  make local-up          Levanta Kodi + repo local para probar instalacion' \
 		'  make local-dev-up      Levanta Kodi + repo local montando el addon en vivo' \
@@ -16,6 +17,9 @@ help:
 		'  make local-kodi-http-timeout Sube timeouts HTTP de Kodi en advancedsettings.xml' \
 		'  make local-logs        Muestra logs de Kodi y repo' \
 		'  make local-ps          Lista los contenedores del stack local'
+
+test:
+	python3 -m unittest discover -s tests -p 'test_*.py'
 
 local-build:
 	PENTARACT_KODI_PUBLIC_BASE_URL=$(LOCAL_REPOSITORY_BASE_URL) python3 scripts/build_repository.py

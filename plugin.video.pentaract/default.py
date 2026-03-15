@@ -243,10 +243,8 @@ def ensure_local_proxy_service():
     return False
 
 
-def register_proxy_session(storage_id, path, title):
-    session_id = str(uuid.uuid4())
-    _profile, buffer_settings = effective_buffer_settings()
-    save_proxy_session(session_id, {
+def build_proxy_session(storage_id, path, title, buffer_settings, created_at=None):
+    return {
         "storage_id": storage_id,
         "path": path,
         "title": title or os.path.basename(path or ""),
@@ -254,8 +252,14 @@ def register_proxy_session(storage_id, path, title):
         "prebuffer_bytes": buffer_settings["prebuffer_bytes"],
         "request_timeout_seconds": buffer_settings["request_timeout_seconds"],
         "chunk_size_bytes": buffer_settings["chunk_size_bytes"],
-        "created_at": int(time.time()),
-    })
+        "created_at": int(created_at if created_at is not None else time.time()),
+    }
+
+
+def register_proxy_session(storage_id, path, title):
+    session_id = str(uuid.uuid4())
+    _profile, buffer_settings = effective_buffer_settings()
+    save_proxy_session(session_id, build_proxy_session(storage_id, path, title, buffer_settings))
     cleanup_proxy_sessions()
     return session_id, PROXY_BASE_URL + "/stream/" + session_id
 
