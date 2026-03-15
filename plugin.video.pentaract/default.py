@@ -131,7 +131,7 @@ def localized(string_id, fallback=""):
 
 
 def show_api_error(error):
-    message = error.message or "Error de comunicacion con Pentaract"
+    message = error.message or "Communication error with Pentaract"
     notify(message, xbmcgui.NOTIFICATION_ERROR)
     log("API error (%s): %s" % (error.status, message), xbmc.LOGERROR)
 
@@ -207,7 +207,7 @@ def buffer_profile_summary():
     profile_name = selected_buffer_profile_label()
     _profile, settings = effective_buffer_settings()
     if _profile == "disabled":
-        return "%s, URL directa al backend" % profile_name
+        return "%s, direct backend URL" % profile_name
     return "%s, %s prebuffer, %ds timeout" % (
         profile_name,
         format_size(settings["prebuffer_bytes"]),
@@ -278,8 +278,8 @@ def open_addon_settings(show_message=True):
         DIALOG.ok(
             "Pentaract",
             (
-                "Desde aqui puedes configurar la URL, las credenciales y el modo de streaming del addon.\n\n"
-                "Si quieres borrar las credenciales, deja vacios el usuario y la contrasena y guarda los cambios."
+                "Configure the addon URL, credentials, and streaming mode here.\n\n"
+                "To clear stored credentials, leave the user and password fields empty and save the changes."
             ),
         )
 
@@ -288,7 +288,7 @@ def open_addon_settings(show_message=True):
     current_settings = auth_settings_snapshot()
     if current_settings != previous_settings:
         CLIENT.clear_session()
-        notify("Configuracion del addon actualizada.")
+        notify("Addon settings updated.")
         return True
     return False
 
@@ -302,18 +302,18 @@ def ensure_authenticated(interactive=True):
         except ConfigurationError:
             if not interactive:
                 return False
-            notify("Configura la conexion desde 'Configuracion del addon'.", xbmcgui.NOTIFICATION_ERROR)
+            notify("Configure the connection from 'Addon settings'.", xbmcgui.NOTIFICATION_ERROR)
             if not open_addon_settings(show_message=False):
                 return False
         except PentaractAPIError as error:
             if error.status == 401 and interactive:
-                notify("Credenciales invalidas. Revisa la configuracion del addon.", xbmcgui.NOTIFICATION_ERROR)
+                notify("Invalid credentials. Check the addon settings.", xbmcgui.NOTIFICATION_ERROR)
                 if not open_addon_settings(show_message=False):
                     return False
                 attempts += 1
                 continue
             if error.status == 0 and interactive:
-                notify("No se pudo conectar con Pentaract. Revisa la configuracion del addon.", xbmcgui.NOTIFICATION_ERROR)
+                notify("Could not connect to Pentaract. Check the addon settings.", xbmcgui.NOTIFICATION_ERROR)
                 if not open_addon_settings(show_message=False):
                     return False
                 attempts += 1
@@ -423,7 +423,7 @@ def storage_label(storage):
 def render_root(prompt_login=False):
     begin_directory("Pentaract")
     add_navigation_item(
-        "Configuracion del addon",
+        "Addon settings",
         {"action": "addon_settings"},
         icon="DefaultAddonProgram.png",
     )
@@ -439,7 +439,7 @@ def render_root(prompt_login=False):
             add_storage_item(storage)
 
         if not storages:
-            notify("No hay storages accesibles para este usuario.")
+            notify("No storages are available for this user.")
 
     end_directory()
 
@@ -496,7 +496,7 @@ def playback_stream_url(storage_id, path, title):
     if direct_stream_enabled():
         return CLIENT.build_stream_url(storage_id, path, download_id=str(uuid.uuid4()))
     if not ensure_local_proxy_service():
-        raise OSError("No se pudo iniciar el proxy local de streaming.")
+        raise OSError("Could not start the local streaming proxy.")
     _session_id, stream_url = register_proxy_session(storage_id, path, title)
     return stream_url
 
@@ -533,11 +533,11 @@ def play_video(storage_id, path, title):
 
 
 def show_file_info():
-    message = "Ruta: %s\nTamano: %s\n\nKodi solo reproducira ficheros de video compatibles." % (
+    message = "Path: %s\nSize: %s\n\nKodi will only play supported video files." % (
         PARAMS.get("path", ""),
         format_size(int(PARAMS.get("size", "0"))),
     )
-    DIALOG.ok(PARAMS.get("name", "Fichero"), message)
+    DIALOG.ok(PARAMS.get("name", "File"), message)
     render_directory(
         PARAMS.get("storage_id", ""),
         PARAMS.get("storage_name", ""),
