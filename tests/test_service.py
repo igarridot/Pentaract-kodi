@@ -73,6 +73,28 @@ class ServiceModuleTests(unittest.TestCase):
         self.assertEqual(2 * 1024 * 1024, plan["target_bytes"])
         self.assertEqual(2 * 1024 * 1024, plan["rebuffer_target_bytes"])
 
+    def test_compute_buffer_plan_uses_smaller_targets_for_partial_content(self):
+        module, _addon, _profile_dir = self.load_service_module()
+
+        plan = module.compute_buffer_plan(
+            content_length=128 * 1024 * 1024,
+            prebuffer_bytes=16 * 1024 * 1024,
+            chunk_size=256 * 1024,
+            partial_content=True,
+        )
+
+        self.assertEqual(66, plan["queue_size"])
+        self.assertEqual(256 * 1024, plan["network_read_size"])
+        self.assertEqual(4 * 1024 * 1024, plan["target_bytes"])
+        self.assertEqual(2 * 1024 * 1024, plan["rebuffer_target_bytes"])
+
+    def test_is_partial_stream_response_detects_partial_status_or_headers(self):
+        module, _addon, _profile_dir = self.load_service_module()
+
+        self.assertTrue(module.is_partial_stream_response(FakeResponse(status=206)))
+        self.assertTrue(module.is_partial_stream_response(FakeResponse(headers={"Content-Range": "bytes 0-9/100"})))
+        self.assertFalse(module.is_partial_stream_response(FakeResponse(status=200)))
+
     def test_forward_response_headers_uses_session_mime_fallback(self):
         module, _addon, _profile_dir = self.load_service_module()
         runtime = module.ProxyRuntime()
