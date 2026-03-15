@@ -237,7 +237,7 @@ class PentaractClient:
 
         response.close()
         if not retry_auth:
-            raise PentaractAPIError("Credenciales no validas para reproducir el stream.", 401)
+            raise PentaractAPIError("Invalid credentials for stream playback.", 401)
 
         self.clear_session()
         self.login()

@@ -6,17 +6,17 @@ LOCAL_REPOSITORY_BASE_URL = http://repo/
 
 help:
 	@printf '%s\n' \
-		'Targets disponibles:' \
-		'  make test              Ejecuta tests unitarios del addon' \
-		'  make local-build       Regenera repository/ y docs/' \
-		'  make local-up          Levanta Kodi + repo local para probar instalacion' \
-		'  make local-dev-up      Levanta Kodi + repo local montando el addon en vivo' \
-		'  make local-down        Apaga el stack local de Kodi' \
-		'  make local-restart     Reinicia el stack local de Kodi' \
-		'  make local-dev-restart Reinicia el stack con el addon montado' \
-		'  make local-kodi-http-timeout Sube timeouts HTTP de Kodi en advancedsettings.xml' \
-		'  make local-logs        Muestra logs de Kodi y repo' \
-		'  make local-ps          Lista los contenedores del stack local'
+		'Available targets:' \
+		'  make test              Run addon unit tests' \
+		'  make local-build       Regenerate repository/ and docs/' \
+		'  make local-up          Start Kodi + local repo for installation flow testing' \
+		'  make local-dev-up      Start Kodi + local repo with the addon mounted live' \
+		'  make local-down        Stop the local Kodi stack' \
+		'  make local-restart     Recreate the local Kodi stack' \
+		'  make local-dev-restart Recreate the stack with the live-mounted addon' \
+		'  make local-kodi-http-timeout Increase Kodi HTTP timeouts in advancedsettings.xml' \
+		'  make local-logs        Show Kodi and repo logs' \
+		'  make local-ps          List local stack containers'
 
 test:
 	python3 -m unittest discover -s tests -p 'test_*.py'

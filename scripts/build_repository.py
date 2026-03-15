@@ -154,7 +154,7 @@ def build_pages_index(addons):
     pages_url = public_base_url()
 
     return f"""<!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -216,32 +216,32 @@ def build_pages_index(addons):
   <main>
     <section class="panel">
       <h1>Pentaract Kodi Hub</h1>
-      <p>Fuente web para instalar el repositorio y el addon de Pentaract en Kodi, al estilo de los tutoriales con "Add source".</p>
-      <p><strong>Fuente para Kodi File Manager:</strong> <code>{pages_url}</code></p>
+      <p>Web source for installing the Pentaract repository and addon in Kodi using the standard "Add source" flow.</p>
+      <p><strong>Kodi File Manager source:</strong> <code>{pages_url}</code></p>
     </section>
     <section class="panel">
-      <h2>Descargas rápidas</h2>
+      <h2>Quick downloads</h2>
       <ul>
-        <li><a href="repository.pentaract.zip">repository.pentaract.zip</a> - alias estable al ZIP actual del repositorio.</li>
-        <li><a href="plugin.video.pentaract.zip">plugin.video.pentaract.zip</a> - alias estable al ZIP actual del addon.</li>
+        <li><a href="repository.pentaract.zip">repository.pentaract.zip</a> - stable alias for the current repository ZIP.</li>
+        <li><a href="plugin.video.pentaract.zip">plugin.video.pentaract.zip</a> - stable alias for the current video addon ZIP.</li>
         <li><a href="repository/zips/repository.pentaract/{repo_zip_name}">{repo_zip_name}</a></li>
         <li><a href="repository/zips/plugin.video.pentaract/{plugin_zip_name}">{plugin_zip_name}</a></li>
       </ul>
     </section>
     <section class="panel">
-      <h2>Instalación en Kodi</h2>
+      <h2>Install in Kodi</h2>
       <ol>
-        <li>Ve a <strong>Settings &gt; File Manager &gt; Add source</strong>.</li>
-        <li>Introduce exactamente <code>{pages_url}</code> y ponle un nombre, por ejemplo <code>Pentaract</code>.</li>
-        <li>Ve a <strong>Add-ons &gt; Install from ZIP file</strong> y entra en la fuente que acabas de crear.</li>
-        <li>Selecciona <a href="repository.pentaract.zip"><code>repository.pentaract.zip</code></a>. Es la opción recomendada porque permite actualizaciones automáticas.</li>
-        <li>Después ve a <strong>Install from repository &gt; Pentaract Repository &gt; Video add-ons &gt; Pentaract</strong>.</li>
+        <li>Go to <strong>Settings &gt; File Manager &gt; Add source</strong>.</li>
+        <li>Enter <code>{pages_url}</code> exactly and give it any name you like, for example <code>Pentaract</code>.</li>
+        <li>Go to <strong>Add-ons &gt; Install from ZIP file</strong> and open the source you just created.</li>
+        <li>Select <a href="repository.pentaract.zip"><code>repository.pentaract.zip</code></a>. This is the recommended option because it enables automatic updates.</li>
+        <li>Then go to <strong>Install from repository &gt; Pentaract Repository &gt; Video add-ons &gt; Pentaract</strong>.</li>
       </ol>
-      <p>Si instalas <a href="plugin.video.pentaract.zip"><code>plugin.video.pentaract.zip</code></a> directamente, el addon se instala, pero no seguirá el flujo normal de autoactualización mediante repositorio.</p>
+      <p>If you install <a href="plugin.video.pentaract.zip"><code>plugin.video.pentaract.zip</code></a> directly, the addon will work, but it will not follow the normal repository-based auto-update flow.</p>
     </section>
     <section class="panel">
-      <h2>Publicación</h2>
-      <p>El repositorio fuente está en <a href="{REPO_URL}">{REPO_URL}</a>. Las releases versionadas siguen publicándose en GitHub Releases y en el feed de Kodi dentro de <a href="repository/addons.xml"><code>repository/addons.xml</code></a>.</p>
+      <h2>Publishing</h2>
+      <p>The source repository lives at <a href="{REPO_URL}">{REPO_URL}</a>. Versioned releases continue to be published through GitHub Releases and the Kodi feed in <a href="repository/addons.xml"><code>repository/addons.xml</code></a>.</p>
     </section>
   </main>
 </body>

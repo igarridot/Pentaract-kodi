@@ -1,142 +1,135 @@
 # Pentaract Kodi
 
-Addon para Kodi 21 que actua como cliente de `pentaract`.
+Kodi 21 addon and repository for browsing Pentaract storages and streaming supported video files.
 
-## Que incluye
+## Components
 
-- `plugin.video.pentaract`: addon de video para navegar storages, carpetas y ficheros.
-- `repository.pentaract`: addon de repositorio para instalar el cliente desde Kodi.
-- `scripts/build_repository.py`: genera `repository/` y `docs/` localmente para pruebas y publicacion.
+- `plugin.video.pentaract`: Kodi video addon that authenticates against `pentaract`, lists storages, browses folders, and plays supported media.
+- `repository.pentaract`: Kodi repository addon used for standard installation and automatic updates.
+- `scripts/build_repository.py`: generates `repository/` metadata plus the GitHub Pages-friendly `docs/` site and stable ZIP aliases.
 
-`docs/` y `repository/` son artefactos generados. Se usan en local, pero ya no se versionan en Git para evitar conflictos de merge con ZIPs y contenido publicado.
+## Current Features
 
-## Publicacion automatica
+- Login with Pentaract base URL plus user or email credentials
+- Storage listing and folder navigation through the Pentaract API
+- Direct playback of supported video files
+- Optional listing of non-video files as informational entries
+- Local streaming proxy with configurable buffer profiles
+- Optional direct streaming mode that bypasses the local proxy
+- Playback buffer overlay handled entirely by the addon
+- Repository packaging for Kodi "Install from ZIP file" and "Install from repository" flows
+- Docker Compose setup for real-install testing and fast live addon iteration
 
-Cada merge a `master` dispara `.github/workflows/release.yml`, que hace esto automaticamente:
+## Release Automation
 
-1. Calcula la siguiente version semantica estable (`vX.Y.Z`).
-2. Actualiza solo la version de `plugin.video.pentaract`.
-3. Valida la sintaxis Python.
-4. Genera `repository/addons.xml`, `repository/addons.xml.md5` y los ZIPs.
-5. Regenera `docs/` con una fuente web navegable y ZIPs estables.
-6. Sube los ZIPs y metadatos como artefacto del workflow.
-7. Sube `docs/` como artifact de GitHub Pages y lo despliega con `deploy-pages`.
-8. Hace commit solo del `addon.xml` de `plugin.video.pentaract`.
-9. Crea y publica un tag Git estandar.
-10. Publica una GitHub Release con los ZIPs y metadatos.
+Each merge to `master` triggers [.github/workflows/release.yml](/Volumes/SUNEAST/workspace/Pentaract-kodi/.github/workflows/release.yml), which:
 
-La logica de versionado esta en `scripts/version.py`. Si no existe ningun tag semantico previo, la primera release usa la version actual de `plugin.video.pentaract`. A partir de ahi, cada merge incrementa automaticamente el patch del addon de video. `repository.pentaract` mantiene su version hasta que necesites cambiar manualmente el propio addon de repositorio.
+1. Resolves the next stable semantic version (`vX.Y.Z`).
+2. Updates the video addon version in `plugin.video.pentaract/addon.xml`.
+3. Validates Python syntax.
+4. Generates `repository/addons.xml`, `repository/addons.xml.md5`, and all release ZIP files.
+5. Regenerates `docs/` with a browsable GitHub Pages source and stable ZIP aliases.
+6. Uploads ZIPs and metadata as workflow artifacts.
+7. Publishes `docs/` to GitHub Pages.
+8. Commits the version bump for `plugin.video.pentaract/addon.xml`.
+9. Creates and pushes the Git tag.
+10. Publishes the GitHub Release with ZIPs and repository metadata attached.
 
-## Instalacion en Kodi
+Version logic lives in `scripts/version.py`. If no previous semantic tag exists, the first automated release keeps the current addon version. After that, each merge increments the patch version of `plugin.video.pentaract`. `repository.pentaract` only changes when you update the repository addon itself.
 
-1. Asegura que GitHub Actions puede escribir en `master`, crear tags y desplegar GitHub Pages.
-2. Activa GitHub Pages una sola vez en `Settings > Pages` usando `GitHub Actions` como fuente.
-3. Haz merge a `master` y espera a que termine la release automatica.
-4. En Kodi ve a `Settings > File Manager > Add source`.
-5. Como ruta introduce exactamente `https://igarridot.github.io/Pentaract-kodi/`.
-6. Ponle el nombre que quieras, por ejemplo `Pentaract`.
-7. Ve a `Add-ons > Install from ZIP file`, entra en la fuente `Pentaract` y selecciona `repository.pentaract.zip`.
-8. Ve a `Add-ons > Install from repository > Pentaract Repository > Video add-ons > Pentaract`.
-9. Al abrir el addon, Kodi pedira:
-   - URL base de `pentaract`
-   - usuario o email
-   - contrasena
+## Install In Kodi
 
-## URLs exactas publicadas
+1. Make sure GitHub Actions can push to `master`, create tags, and deploy GitHub Pages.
+2. Enable GitHub Pages once in `Settings > Pages` with `GitHub Actions` as the source.
+3. Merge to `master` and wait for the automated release to finish.
+4. In Kodi, go to `Settings > File Manager > Add source`.
+5. Enter `https://igarridot.github.io/Pentaract-kodi/` exactly as the path.
+6. Give it any name you want, for example `Pentaract`.
+7. Go to `Add-ons > Install from ZIP file`, open that source, and install `repository.pentaract.zip`.
+8. Go to `Add-ons > Install from repository > Pentaract Repository > Video add-ons > Pentaract`.
+9. Open the addon and configure:
+   - Pentaract base URL
+   - user or email
+   - password
 
-- Repositorio GitHub: `https://github.com/igarridot/Pentaract-kodi`
-- Pagina de releases: `https://github.com/igarridot/Pentaract-kodi/releases`
-- Fuente web para Kodi: `https://igarridot.github.io/Pentaract-kodi/`
-- ZIP estable del repositorio para `Install from ZIP file`: `https://igarridot.github.io/Pentaract-kodi/repository.pentaract.zip`
-- ZIP estable del addon de video: `https://igarridot.github.io/Pentaract-kodi/plugin.video.pentaract.zip`
-- Feed `addons.xml`: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml`
-- Checksum del feed: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml.md5`
-- Base de ZIPs del repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/`
-- ZIP actual del addon de repositorio: `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-1.0.2.zip`
-- ZIP actual del addon de video: `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-1.0.2.zip`
+## Published URLs
 
-Cuando haya nuevas releases, el patron de las URLs versionadas seguira este formato:
+- GitHub repository: `https://github.com/igarridot/Pentaract-kodi`
+- GitHub releases: `https://github.com/igarridot/Pentaract-kodi/releases`
+- GitHub Pages source for Kodi: `https://igarridot.github.io/Pentaract-kodi/`
+- Stable repository ZIP: `https://igarridot.github.io/Pentaract-kodi/repository.pentaract.zip`
+- Stable video addon ZIP: `https://igarridot.github.io/Pentaract-kodi/plugin.video.pentaract.zip`
+- `addons.xml` feed: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml`
+- `addons.xml.md5`: `https://igarridot.github.io/Pentaract-kodi/repository/addons.xml.md5`
+- Repository ZIP base: `https://igarridot.github.io/Pentaract-kodi/repository/zips/`
+
+Versioned release URLs follow these patterns:
 
 - `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/repository.pentaract-A.B.C.zip`
 - `https://github.com/igarridot/Pentaract-kodi/releases/download/vX.Y.Z/plugin.video.pentaract-X.Y.Z.zip`
 - `https://igarridot.github.io/Pentaract-kodi/repository/zips/repository.pentaract/repository.pentaract-A.B.C.zip`
 - `https://igarridot.github.io/Pentaract-kodi/repository/zips/plugin.video.pentaract/plugin.video.pentaract-X.Y.Z.zip`
 
-Notas:
+## Local Testing With Docker Compose
 
-- `plugin.video.pentaract` incrementa su version automaticamente en cada merge a `master`.
-- `repository.pentaract` solo cambia de version cuando se modifica manualmente el propio addon de repositorio.
+The repo supports two local workflows without starting `pentaract` from this project.
 
-## Test local con Docker Compose
+### Mode 1: Full installation flow
 
-Hay dos modos de probar el addon en local, ambos sin levantar `pentaract` desde este repo.
+This mode starts:
 
-### Modo 1: probar el flujo real de instalacion
+- `repo`: an `nginx` container serving `docs/` at `http://localhost:18080`
+- `kodi`: Kodi Omega with `noVNC` at `http://localhost:18000`
 
-Este modo levanta:
+Steps:
 
-- `repo`: un `nginx` sirviendo `docs/` en `http://localhost:18080`
-- `kodi`: Kodi Omega con `noVNC` en `http://localhost:18000`
+1. Run `make local-up`.
+2. Open Kodi at `http://localhost:18000`.
+3. In Kodi, go to `Settings > File Manager > Add source`.
+4. Use `http://repo/` exactly as the source URL.
+   The generated repository feed points to `http://repo/`, and Kodi can resolve that service name inside the Docker Compose network.
+5. Go to `Add-ons > Install from ZIP file` and install `repository.pentaract.zip`.
+6. Install `Pentaract` from `Pentaract Repository`.
+7. Configure the addon with the base URL of your running `pentaract` instance.
 
-Pasos:
+Recommended base URL:
 
-1. En este repo ejecuta:
-   - `make local-up`
-2. Abre Kodi en `http://localhost:18000`
-3. En Kodi ve a `Settings > File Manager > Add source`
-4. Como fuente usa exactamente `http://repo/`
-   - Ese nombre funciona porque `make local-build` genera el feed apuntando a `http://repo/` y Kodi resuelve el servicio `repo` dentro de la red de `docker compose`
-5. Ve a `Add-ons > Install from ZIP file` e instala `repository.pentaract.zip`
-6. Después instala `Pentaract` desde `Pentaract Repository`
-7. Dentro del addon configura como URL base de `pentaract`
+- If `pentaract` runs on the same machine and exposes port `8000`: `http://host.docker.internal:8000`
+- Otherwise: use the real URL reachable from the Kodi container
 
-URL base recomendada:
+### Mode 2: Fast development with the addon mounted live
 
-- Si tu `pentaract` está en la misma máquina y publica el puerto `8000`: `http://host.docker.internal:8000`
-- Si está en otra máquina o en otro entorno: usa la URL real alcanzable desde el contenedor Kodi
+Run `make local-dev-up` to start the same stack with `docker-compose.local.dev.yml`, mounting [plugin.video.pentaract](/Volumes/SUNEAST/workspace/Pentaract-kodi/plugin.video.pentaract) directly into Kodi at `/data/.kodi/addons/plugin.video.pentaract`.
 
-### Modo 2: desarrollo rapido montando el addon
+Useful notes:
 
-Si quieres iterar sin reinstalar el ZIP cada vez, usa también el override `docker-compose.local.dev.yml`:
-
-- `make local-dev-up`
-
-Eso monta directamente [plugin.video.pentaract](/Volumes/SUNEAST/workspace/Pentaract-kodi/plugin.video.pentaract) dentro de Kodi en `/data/.kodi/addons/plugin.video.pentaract`.
-
-Notas:
-
-- El addon usa un proxy local propio para los streams de Pentaract:
-  - el buffer y sus timeouts son locales al addon
-  - no modifica `advancedsettings.xml`, `filecache.*` ni ningun ajuste global de Kodi
-- Los perfiles y el modo avanzado del buffer se configuran desde:
-  - `Ajustes del addon > Reproduccion`
-- La barra de buffer durante la reproducción también es propia del addon:
-  - se puede activar o desactivar desde `Ajustes del addon > Reproduccion > Mostrar barra de buffer`
-- Tras cambiar código Python del addon, reinicia Kodi para recargarlo:
-  - `make local-dev-restart`
-- Para apagar el stack local:
-  - `make local-down`
-- Para ver logs:
-  - `make local-logs`
-- Esta imagen de Kodi funciona mejor recreando el contenedor que usando `restart`; por eso `make local-restart` y `make local-dev-restart` hacen `down` + `up`
-- Los datos persistentes de Kodi quedan en `local-testing/kodi-data/`
-- El contenedor expone también:
-  - webserver Kodi: `http://localhost:18081`
+- The addon can stream through its own local proxy, so buffering and request timeouts stay local to the addon.
+- It does not modify `advancedsettings.xml`, `filecache.*`, or Kodi-wide buffering settings.
+- Buffer profiles and advanced buffering live under `Addon settings > Playback`.
+- The playback buffer overlay can be toggled in `Addon settings > Playback > Show buffer overlay`.
+- Restart Kodi after changing Python code so the addon reloads cleanly: `make local-dev-restart`.
+- Shut down the local stack with `make local-down`.
+- View logs with `make local-logs`.
+- The provided Kodi image behaves more reliably when recreated instead of restarted in place, which is why `make local-restart` and `make local-dev-restart` do `down` + `up`.
+- Persistent Kodi data is stored in `local-testing/kodi-data/`.
+- The container also exposes:
+  - Kodi webserver: `http://localhost:18081`
   - JSON-RPC: `tcp://localhost:19090`
   - VNC: `localhost:15900`
 
-## Nota sobre permisos de GitHub
+## Addon Behavior
 
-Si `master` esta protegida, la GitHub Action debe tener permiso para hacer push a la rama y crear tags. Si la politica del repositorio no lo permite con `GITHUB_TOKEN`, necesitarias autorizar bypass para GitHub Actions o usar un token dedicado. GitHub Pages debe quedar configurado para desplegar desde `GitHub Actions`.
+- Lists the storages available to the authenticated user.
+- Browses folders via `/api/storages/{storageID}/files/tree/*`.
+- Streams supported video files via `/api/storages/{storageID}/files/download/*?inline=1`.
+- Uses either direct backend URLs or the addon-managed local proxy, depending on the selected playback mode.
+- Can show a buffer overlay driven by the addon proxy prebuffer state.
+- Can expose non-video files as informational items when that setting is enabled.
 
-## Comportamiento del addon
+## GitHub Permissions Note
 
-- Lista los storages accesibles para el usuario autenticado.
-- Permite navegar carpetas usando `/api/storages/{storageID}/files/tree/*`.
-- Los ficheros de video compatibles se reproducen en streaming usando `/api/storages/{storageID}/files/download/*?inline=1`.
-- Durante la reproducción de streams de Pentaract, el addon puede mostrar una barra de buffer basada en el prebuffer del proxy local del propio addon.
-- Los ficheros no video pueden verse como entrada informativa si la opcion correspondiente esta activa.
+If `master` is protected, GitHub Actions must be allowed to push commits and tags. If repository policy does not allow that through `GITHUB_TOKEN`, you need either a bypass rule for GitHub Actions or a dedicated token. GitHub Pages must remain configured to deploy from `GitHub Actions`.
 
-## Nota importante sobre videos largos
+## Long Playback Note
 
-`pentaract` usa JWT con expiracion. Si la reproduccion de videos largos falla tras unos 30 minutos, aumenta `ACCESS_TOKEN_EXPIRE_IN_SECS` en el servidor para dar mas margen a Kodi durante el streaming.
+`pentaract` uses expiring JWT access tokens. If very long videos fail after roughly 30 minutes, increase `ACCESS_TOKEN_EXPIRE_IN_SECS` on the server so Kodi has a longer streaming window.
