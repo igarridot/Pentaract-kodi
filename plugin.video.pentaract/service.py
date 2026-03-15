@@ -25,6 +25,8 @@ POLL_INTERVAL_SECONDS = 0.2
 IDLE_EXIT_SECONDS = 15 * 60
 STARTUP_BUFFER_MAX_BYTES = 64 * 1024 * 1024
 REBUFFER_TARGET_MAX_BYTES = 16 * 1024 * 1024
+PARTIAL_STARTUP_BUFFER_MAX_BYTES = 8 * 1024 * 1024
+PARTIAL_REBUFFER_TARGET_MAX_BYTES = 4 * 1024 * 1024
 NETWORK_READ_MAX_BYTES = 1024 * 1024
 MIN_NETWORK_READ_BYTES = 256 * 1024
 
@@ -33,7 +35,7 @@ def log(message, level=xbmc.LOGINFO):
     xbmc.log("[plugin.video.pentaract.service] %s" % message, level)
 
 
-def compute_buffer_plan(content_length, prebuffer_bytes, chunk_size):
+def compute_buffer_plan(content_length, prebuffer_bytes, chunk_size, partial_content=False):
     normalized_chunk_size = max(int(chunk_size or 0), 1)
     normalized_prebuffer_bytes = max(int(prebuffer_bytes or 0), 0)
     normalized_content_length = max(int(content_length or 0), 0)
@@ -44,21 +46,47 @@ def compute_buffer_plan(content_length, prebuffer_bytes, chunk_size):
     )
     network_read_size = min(max(normalized_chunk_size, MIN_NETWORK_READ_BYTES), NETWORK_READ_MAX_BYTES)
 
-    target_bytes = normalized_prebuffer_bytes
-    if normalized_content_length > 0:
-        target_bytes = min(normalized_prebuffer_bytes, normalized_content_length)
-    target_bytes = max(target_bytes, normalized_chunk_size * 4)
-    target_bytes = min(target_bytes, STARTUP_BUFFER_MAX_BYTES)
+    if partial_content:
+        # Range responses are typically seek/resume operations, so we use a
+        # smaller warm-up target to reduce resume latency while still keeping a
+        # few megabytes buffered before playback continues.
+        target_bytes = max(
+            normalized_chunk_size * 8,
+            min(
+                max(normalized_prebuffer_bytes // 4, normalized_chunk_size * 4),
+                PARTIAL_STARTUP_BUFFER_MAX_BYTES,
+            ),
+        )
+        if normalized_content_length > 0:
+            target_bytes = min(target_bytes, normalized_content_length)
+    else:
+        target_bytes = normalized_prebuffer_bytes
+        if normalized_content_length > 0:
+            target_bytes = min(normalized_prebuffer_bytes, normalized_content_length)
+        target_bytes = max(target_bytes, normalized_chunk_size * 4)
+        target_bytes = min(target_bytes, STARTUP_BUFFER_MAX_BYTES)
     if target_bytes <= 0:
         target_bytes = normalized_chunk_size
 
-    rebuffer_target_bytes = min(
-        target_bytes,
-        max(
-            normalized_chunk_size * 4,
-            min(max(normalized_prebuffer_bytes // 2, normalized_chunk_size * 4), REBUFFER_TARGET_MAX_BYTES),
-        ),
-    )
+    if partial_content:
+        rebuffer_target_bytes = min(
+            target_bytes,
+            max(
+                normalized_chunk_size * 4,
+                min(
+                    max(target_bytes // 2, normalized_chunk_size * 4),
+                    PARTIAL_REBUFFER_TARGET_MAX_BYTES,
+                ),
+            ),
+        )
+    else:
+        rebuffer_target_bytes = min(
+            target_bytes,
+            max(
+                normalized_chunk_size * 4,
+                min(max(normalized_prebuffer_bytes // 2, normalized_chunk_size * 4), REBUFFER_TARGET_MAX_BYTES),
+            ),
+        )
     if rebuffer_target_bytes <= 0:
         rebuffer_target_bytes = normalized_chunk_size * 2
 
@@ -68,6 +96,11 @@ def compute_buffer_plan(content_length, prebuffer_bytes, chunk_size):
         "target_bytes": target_bytes,
         "rebuffer_target_bytes": rebuffer_target_bytes,
     }
+
+
+def is_partial_stream_response(remote_response):
+    status_code = getattr(remote_response, "status", None) or getattr(remote_response, "code", 200)
+    return status_code == 206 or bool(remote_response.headers.get("Content-Range"))
 
 
 class BufferState:
@@ -328,10 +361,12 @@ class ProxyRuntime:
         chunk_size,
         max_initial_wait_seconds,
     ):
+        partial_content = is_partial_stream_response(remote_response)
         buffer_plan = compute_buffer_plan(
             remote_response.headers.get("Content-Length"),
             prebuffer_bytes,
             chunk_size,
+            partial_content=partial_content,
         )
         queue = Queue(maxsize=buffer_plan["queue_size"])
         network_read_size = buffer_plan["network_read_size"]
@@ -392,8 +427,8 @@ class ProxyRuntime:
         rebuffer_target_bytes = buffer_plan["rebuffer_target_bytes"]
 
         log(
-            "Initial buffer target=%s bytes, rebuffer target=%s bytes, network_read=%s bytes"
-            % (target_bytes, rebuffer_target_bytes, network_read_size)
+            "Initial buffer target=%s bytes, rebuffer target=%s bytes, network_read=%s bytes, partial=%s"
+            % (target_bytes, rebuffer_target_bytes, network_read_size, partial_content)
         )
 
         def wait_for_buffer(target_buffer_bytes, max_wait_seconds, label):
