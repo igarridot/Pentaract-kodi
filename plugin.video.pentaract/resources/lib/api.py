@@ -133,12 +133,13 @@ class PentaractClient:
         if download_id:
             query_params["download_id"] = download_id
         query = urllib.parse.urlencode(query_params)
-        return "%s/api/storages/%s/files/download/%s?%s" % (
+        stream_url = "%s/api/storages/%s/files/download/%s?%s" % (
             self.base_url,
             storage_id,
             self._encode_path(path),
             query,
         )
+        return self._with_kodi_headers(stream_url, {"User-Agent": self.user_agent()})
 
     def open_stream(self, storage_id, path, byte_range=None, inline=True, timeout=60, download_id=None):
         if not self.base_url:
@@ -167,7 +168,10 @@ class PentaractClient:
         if not self.base_url:
             raise ConfigurationError("Falta la URL base de Pentaract.")
 
-        headers = {"Accept": "application/json"}
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": self.user_agent(),
+        }
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -250,6 +254,7 @@ class PentaractClient:
 
     def _perform_binary_open(self, path, headers=None, timeout=60, include_auth=True):
         request_headers = dict(headers or {})
+        request_headers.setdefault("User-Agent", self.user_agent())
         if include_auth:
             request_headers["Authorization"] = "Bearer %s" % self.ensure_token()
 
@@ -276,6 +281,17 @@ class PentaractClient:
         if normalized and "://" not in normalized:
             normalized = "http://" + normalized
         return normalized
+
+    def user_agent(self):
+        version = (self.addon.getAddonInfo("version") or "").strip()
+        if version:
+            return "Pentaract-Kodi/%s" % version
+        return "Pentaract-Kodi"
+
+    def _with_kodi_headers(self, url, headers):
+        if not headers:
+            return url
+        return "%s|%s" % (url, urllib.parse.urlencode(headers))
 
     def _encode_path(self, path):
         return urllib.parse.quote((path or "").strip("/"), safe="/")
