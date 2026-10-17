@@ -16,6 +16,7 @@ Kodi 21 addon and repository for browsing Pentaract storages and streaming suppo
 - Optional listing of non-video files as informational entries
 - Local streaming proxy with configurable buffer profiles
 - Optional direct streaming mode that bypasses the local proxy
+- Root menu action that raises Kodi's HTTP timeouts in `advancedsettings.xml`, so a seek survives a slow chunk download from Telegram (Kodi restart required)
 - Playback buffer overlay handled entirely by the addon
 - Repository packaging for Kodi "Install from ZIP file" and "Install from repository" flows
 - Docker Compose setup for real-install testing and fast live addon iteration

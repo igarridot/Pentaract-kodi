@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from tests.kodi_test_utils import load_plugin_module
@@ -112,6 +113,46 @@ class DefaultModuleTests(unittest.TestCase):
             ],
             build_calls,
         )
+
+    def test_tune_kodi_timeouts_writes_profile_advancedsettings_and_asks_for_restart(self):
+        module, _addon, profile_dir = self.load_default_module()
+        target = os.path.join(profile_dir, "advancedsettings.xml")
+        module.xbmcvfs.translatePath = lambda path: target if path == module.ADVANCED_SETTINGS_PATH else str(path)
+
+        self.assertTrue(module.tune_kodi_timeouts())
+
+        with open(target, "r", encoding="utf-8") as handle:
+            written = handle.read()
+        self.assertIn("<curlclienttimeout>120</curlclienttimeout>", written)
+        self.assertIn("<curllowspeedtime>120</curllowspeedtime>", written)
+        self.assertEqual(1, len(module.DIALOG.ok_calls))
+        self.assertIn("Restart Kodi", module.DIALOG.ok_calls[0][1])
+
+    def test_tune_kodi_timeouts_keeps_existing_settings_and_skips_when_already_set(self):
+        module, _addon, profile_dir = self.load_default_module()
+        target = os.path.join(profile_dir, "advancedsettings.xml")
+        module.xbmcvfs.translatePath = lambda path: target if path == module.ADVANCED_SETTINGS_PATH else str(path)
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write("<advancedsettings><cache><memorysize>1</memorysize></cache></advancedsettings>")
+
+        self.assertTrue(module.tune_kodi_timeouts())
+        with open(target, "r", encoding="utf-8") as handle:
+            written = handle.read()
+        self.assertIn("<memorysize>1</memorysize>", written)
+        self.assertIn("<curllowspeedtime>120</curllowspeedtime>", written)
+
+        self.assertFalse(module.tune_kodi_timeouts())
+        self.assertEqual(1, len(module.DIALOG.ok_calls))
+        self.assertTrue(any("already" in message for _title, message, _icon, _duration in module.DIALOG.notifications))
+
+    def test_render_root_offers_the_timeout_fix(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        module.ensure_authenticated = lambda interactive=False: False
+
+        module.render_root()
+
+        urls = [call[2] for call in module.xbmcplugin.calls if call[0] == "addDirectoryItem"]
+        self.assertTrue(any("action=tune_kodi_timeouts" in url for url in urls), urls)
 
 
 if __name__ == "__main__":

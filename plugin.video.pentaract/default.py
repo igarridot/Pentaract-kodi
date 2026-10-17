@@ -13,6 +13,12 @@ import xbmcgui
 import xbmcplugin
 import xbmcvfs
 
+from resources.lib.advancedsettings import (
+    DEFAULT_CLIENT_TIMEOUT_SECONDS,
+    DEFAULT_LOW_SPEED_TIME_SECONDS,
+    timeouts_are_sufficient,
+    tune_network_timeouts,
+)
 from resources.lib.api import ConfigurationError, PentaractAPIError, PentaractClient
 from resources.lib.proxy import (
     PROXY_BASE_URL,
@@ -31,6 +37,7 @@ DIALOG = xbmcgui.Dialog()
 CLIENT = PentaractClient(ADDON)
 DEFAULT_BUFFER_PROFILE = "automatic"
 SERVICE_SCRIPT_PATH = xbmcvfs.translatePath(os.path.join(ADDON.getAddonInfo("path"), "service.py"))
+ADVANCED_SETTINGS_PATH = "special://profile/advancedsettings.xml"
 
 BUFFER_PROFILE_PRESETS = {
     "automatic": {
@@ -427,6 +434,11 @@ def render_root(prompt_login=False):
         {"action": "addon_settings"},
         icon="DefaultAddonProgram.png",
     )
+    add_navigation_item(
+        "Fix Kodi HTTP timeouts for streaming",
+        {"action": "tune_kodi_timeouts"},
+        icon="DefaultAddonService.png",
+    )
 
     if ensure_authenticated(interactive=prompt_login):
         try:
@@ -549,6 +561,50 @@ def open_settings_from_root():
     render_root(prompt_login=False)
 
 
+def read_advanced_settings():
+    path = xbmcvfs.translatePath(ADVANCED_SETTINGS_PATH)
+    if not os.path.exists(path):
+        return path, ""
+    with open(path, "r", encoding="utf-8") as handle:
+        return path, handle.read()
+
+
+def tune_kodi_timeouts():
+    """Raise Kodi's HTTP timeouts in advancedsettings.xml so a seek survives a slow chunk download.
+
+    Kodi only reads advancedsettings.xml at startup, so the change needs a restart.
+    """
+    try:
+        path, current = read_advanced_settings()
+        if timeouts_are_sufficient(current):
+            notify("Kodi HTTP timeouts are already %ds or more." % DEFAULT_LOW_SPEED_TIME_SECONDS)
+            return False
+        updated = tune_network_timeouts(current)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(updated)
+    except (OSError, ValueError) as error:
+        log("Could not update advancedsettings.xml: %s" % error, xbmc.LOGERROR)
+        notify("Could not update advancedsettings.xml: %s" % error, xbmcgui.NOTIFICATION_ERROR)
+        return False
+
+    log("Updated %s: curlclienttimeout=%d curllowspeedtime=%d" % (path, DEFAULT_CLIENT_TIMEOUT_SECONDS, DEFAULT_LOW_SPEED_TIME_SECONDS))
+    DIALOG.ok(
+        "Pentaract",
+        (
+            "Kodi now waits up to %d seconds for the stream after a seek "
+            "(curlclienttimeout and curllowspeedtime in advancedsettings.xml).\n\n"
+            "Restart Kodi to apply the change."
+        )
+        % DEFAULT_LOW_SPEED_TIME_SECONDS,
+    )
+    return True
+
+
+def tune_kodi_timeouts_from_root():
+    tune_kodi_timeouts()
+    render_root(prompt_login=False)
+
+
 def browse_from_params():
     render_directory(
         PARAMS.get("storage_id", ""),
@@ -576,6 +632,7 @@ def route():
         "login": open_settings_from_root,
         "optimize_streaming": open_settings_from_root,
         "play": play_from_params,
+        "tune_kodi_timeouts": tune_kodi_timeouts_from_root,
     }
     handler = action_handlers.get(PARAMS.get("action"))
     if handler is None:
