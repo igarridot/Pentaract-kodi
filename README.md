@@ -11,6 +11,7 @@ Kodi 21 addon and repository for browsing Pentaract storages and streaming suppo
 ## Current Features
 
 - Login with Pentaract base URL plus user or email credentials
+- HTTPS servers with a self-signed certificate, trusted once by fingerprint
 - Storage listing and folder navigation through the Pentaract API
 - Direct playback of supported video files
 - Optional listing of non-video files as informational entries
@@ -51,6 +52,15 @@ Version logic lives in `scripts/version.py`. If no previous semantic tag exists,
    - Pentaract base URL
    - user or email
    - password
+
+### HTTPS with a self-signed certificate
+
+The Pentaract backend's nginx front (`https://host:8443`) uses a self-signed certificate by default. Set the base URL to that `https://` address: on the first connection the addon shows the certificate's SHA-256 fingerprint and asks whether to trust it. Compare it with the server's (`openssl x509 -in persistent_data/certs/fullchain.pem -noout -fingerprint -sha256` on the backend host) and accept.
+
+- From then on the addon only accepts that exact certificate, and checks it before sending the password or token. If it changes, the addon asks again and says so.
+- The trusted fingerprint is in the addon settings (expert level). Clear it to be asked again.
+- Certificates signed by a known authority (for example Let's Encrypt) are verified normally and need no prompt.
+- Direct streaming mode hands the URL to Kodi's own player, which cannot pin a certificate: the addon adds `verifypeer=false` for it, and only when a certificate has been trusted. The proxy mode keeps the pinned check for the video stream too.
 
 ## Published URLs
 

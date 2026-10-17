@@ -13,7 +13,12 @@ import xbmcgui
 import xbmcplugin
 import xbmcvfs
 
-from resources.lib.api import ConfigurationError, PentaractAPIError, PentaractClient
+from resources.lib.api import (
+    ConfigurationError,
+    PentaractAPIError,
+    PentaractClient,
+    UntrustedCertificateError,
+)
 from resources.lib.proxy import (
     PROXY_BASE_URL,
     PROXY_HEALTH_URL,
@@ -134,6 +139,38 @@ def show_api_error(error):
     message = error.message or "Communication error with Pentaract"
     notify(message, xbmcgui.NOTIFICATION_ERROR)
     log("API error (%s): %s" % (error.status, message), xbmc.LOGERROR)
+
+
+def confirm_certificate(error):
+    """Shows the fingerprint of a certificate the addon does not trust (a
+    self-signed one, or one that changed) and trusts it if the user agrees."""
+    if error.changed:
+        message = localized(
+            30046,
+            "The Pentaract server certificate has CHANGED.\nOnly accept it if you replaced it yourself.\n\nSHA-256: %s",
+        )
+    else:
+        message = localized(
+            30045,
+            "The Pentaract server uses a certificate no known authority signed (self-signed).\nTrust it if this fingerprint matches your server's.\n\nSHA-256: %s",
+        )
+    if not DIALOG.yesno(localized(30044, "Pentaract certificate"), message % error.fingerprint):
+        log("Server certificate %s not trusted by the user" % error.fingerprint, xbmc.LOGWARNING)
+        return False
+    CLIENT.trust_certificate(error.fingerprint)
+    log("Server certificate %s trusted" % error.fingerprint)
+    return True
+
+
+def with_trusted_certificate(call, *args, **kwargs):
+    """Runs an API call and, if the server certificate is not trusted yet,
+    asks the user once and retries."""
+    try:
+        return call(*args, **kwargs)
+    except UntrustedCertificateError as error:
+        if not confirm_certificate(error):
+            raise
+    return call(*args, **kwargs)
 
 def addon_setting_string(setting_id, legacy_ids=None):
     value = ADDON.getSettingString(setting_id).strip()
@@ -297,8 +334,12 @@ def ensure_authenticated(interactive=True):
     attempts = 0
     while attempts < 3:
         try:
-            CLIENT.ensure_token()
+            with_trusted_certificate(CLIENT.ensure_token)
             return True
+        except UntrustedCertificateError as error:
+            # The user declined the certificate: nothing else will connect.
+            show_api_error(error)
+            return False
         except ConfigurationError:
             if not interactive:
                 return False
@@ -430,7 +471,7 @@ def render_root(prompt_login=False):
 
     if ensure_authenticated(interactive=prompt_login):
         try:
-            storages = CLIENT.list_storages()
+            storages = with_trusted_certificate(CLIENT.list_storages)
         except PentaractAPIError as error:
             show_api_error(error)
             storages = []
@@ -452,7 +493,7 @@ def render_directory(storage_id, storage_name, path):
         return
 
     try:
-        elements = CLIENT.list_directory(storage_id, path)
+        elements = with_trusted_certificate(CLIENT.list_directory, storage_id, path)
     except PentaractAPIError as error:
         show_api_error(error)
         end_directory()
@@ -494,7 +535,7 @@ def clear_resolved_url():
 
 def playback_stream_url(storage_id, path, title):
     if direct_stream_enabled():
-        return CLIENT.build_stream_url(storage_id, path, download_id=str(uuid.uuid4()))
+        return with_trusted_certificate(CLIENT.build_stream_url, storage_id, path, download_id=str(uuid.uuid4()))
     if not ensure_local_proxy_service():
         raise OSError("Could not start the local streaming proxy.")
     _session_id, stream_url = register_proxy_session(storage_id, path, title)
