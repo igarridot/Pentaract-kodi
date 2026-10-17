@@ -163,3 +163,23 @@ msgstr "256 KB"
 msgctxt "#30042"
 msgid "512 KB"
 msgstr "512 KB"
+
+msgctxt "#30044"
+msgid "Pentaract certificate"
+msgstr "Pentaract certificate"
+
+msgctxt "#30045"
+msgid "The Pentaract server uses a certificate no known authority signed (self-signed).\nTrust it if this fingerprint matches your server's.\n\nSHA-256: %s"
+msgstr "The Pentaract server uses a certificate no known authority signed (self-signed).\nTrust it if this fingerprint matches your server's.\n\nSHA-256: %s"
+
+msgctxt "#30046"
+msgid "The Pentaract server certificate has CHANGED.\nOnly accept it if you replaced it yourself.\n\nSHA-256: %s"
+msgstr "The Pentaract server certificate has CHANGED.\nOnly accept it if you replaced it yourself.\n\nSHA-256: %s"
+
+msgctxt "#30047"
+msgid "Trusted server certificate (SHA-256)"
+msgstr "Trusted server certificate (SHA-256)"
+
+msgctxt "#30048"
+msgid "Fingerprint of the self-signed certificate you accepted for an https:// server. Clear it to be asked again."
+msgstr "Fingerprint of the self-signed certificate you accepted for an https:// server. Clear it to be asked again."

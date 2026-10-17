@@ -47,9 +47,15 @@ class FakeDialog:
     def __init__(self):
         self.notifications = []
         self.ok_calls = []
+        self.yesno_calls = []
+        self.yesno_answer = False
 
     def notification(self, title, message, icon, duration):
         self.notifications.append((title, message, icon, duration))
+
+    def yesno(self, title, message):
+        self.yesno_calls.append((title, message))
+        return self.yesno_answer
 
     def ok(self, title, message):
         self.ok_calls.append((title, message))
@@ -119,6 +125,7 @@ def install_kodi_stubs(profile_dir, addon_settings=None, addon_info=None, locali
 
     xbmc = types.ModuleType("xbmc")
     xbmc.LOGINFO = 1
+    xbmc.LOGWARNING = 2
     xbmc.LOGERROR = 4
     xbmc.logged = []
     xbmc.builtins = []

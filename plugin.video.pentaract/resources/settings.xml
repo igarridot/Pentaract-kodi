@@ -34,6 +34,16 @@
             <hidden>true</hidden>
           </control>
         </setting>
+        <setting id="tls_trusted_sha256" type="string" label="30047" help="30048">
+          <level>2</level>
+          <default />
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="edit" format="string">
+            <heading>30047</heading>
+          </control>
+        </setting>
       </group>
       <group id="library" label="30009">
         <setting id="show_non_video" type="boolean" label="30010">

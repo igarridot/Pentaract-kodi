@@ -113,6 +113,40 @@ class DefaultModuleTests(unittest.TestCase):
             build_calls,
         )
 
+    def load_with_untrusted_server(self, answer):
+        module, addon, _profile_dir = self.load_default_module()
+        module.DIALOG.yesno_answer = answer
+        attempts = []
+
+        def ensure_token():
+            attempts.append(addon.getSettingString("tls_trusted_sha256"))
+            if addon.getSettingString("tls_trusted_sha256") != "AB:CD":
+                raise module.UntrustedCertificateError("AB:CD")
+            return "tok"
+
+        module.CLIENT.ensure_token = ensure_token
+        return module, addon, attempts
+
+    def test_accepting_a_self_signed_certificate_trusts_it_and_connects(self):
+        module, addon, attempts = self.load_with_untrusted_server(answer=True)
+
+        self.assertTrue(module.ensure_authenticated(interactive=False))
+
+        self.assertEqual("AB:CD", addon.getSettingString("tls_trusted_sha256"))
+        self.assertEqual(["", "AB:CD"], attempts)
+        self.assertEqual(1, len(module.DIALOG.yesno_calls))
+        self.assertIn("SHA-256: AB:CD", module.DIALOG.yesno_calls[0][1])
+
+    def test_declining_a_self_signed_certificate_does_not_connect(self):
+        module, addon, attempts = self.load_with_untrusted_server(answer=False)
+
+        self.assertFalse(module.ensure_authenticated(interactive=True))
+
+        self.assertEqual("", addon.getSettingString("tls_trusted_sha256"))
+        self.assertEqual([""], attempts)
+        self.assertEqual(0, addon.open_settings_calls, "a declined certificate is not a settings problem")
+        self.assertEqual(module.xbmcgui.NOTIFICATION_ERROR, module.DIALOG.notifications[-1][2])
+
 
 if __name__ == "__main__":
     unittest.main()

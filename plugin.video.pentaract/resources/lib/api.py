@@ -1,5 +1,10 @@
+import functools
+import hashlib
+import http.client
 import json
 import os
+import socket
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -18,6 +23,64 @@ class PentaractAPIError(Exception):
         super().__init__(message)
         self.message = message
         self.status = status
+
+
+class UntrustedCertificateError(PentaractAPIError):
+    """The HTTPS server presents a certificate the addon does not trust yet:
+    one no known authority signed (self-signed), or one that differs from the
+    certificate the user already trusted (changed is True)."""
+
+    def __init__(self, fingerprint, changed=False):
+        super().__init__("Untrusted TLS certificate (SHA-256 %s)." % fingerprint)
+        self.fingerprint = fingerprint
+        self.changed = changed
+
+
+def certificate_fingerprint(der_certificate):
+    digest = hashlib.sha256(der_certificate).hexdigest().upper()
+    return ":".join(digest[index : index + 2] for index in range(0, len(digest), 2))
+
+
+def _unverified_tls_context():
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+class _CertificateMismatch(ssl.SSLError):
+    # An OSError, so urllib wraps it in URLError like any other TLS failure.
+    def __init__(self, fingerprint):
+        super().__init__("certificate fingerprint mismatch")
+        self.fingerprint = fingerprint
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Accepts exactly one certificate, identified by its SHA-256 fingerprint,
+    and checks it right after the TLS handshake: before the request (and its
+    credentials or token) is sent."""
+
+    def __init__(self, *args, pinned_fingerprint, **kwargs):
+        kwargs["context"] = _unverified_tls_context()
+        super().__init__(*args, **kwargs)
+        self._pinned_fingerprint = pinned_fingerprint
+
+    def connect(self):
+        super().connect()
+        seen = certificate_fingerprint(self.sock.getpeercert(binary_form=True))
+        if seen != self._pinned_fingerprint:
+            self.close()
+            raise _CertificateMismatch(seen)
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, pinned_fingerprint):
+        super().__init__()
+        self._pinned_fingerprint = pinned_fingerprint
+
+    def https_open(self, req):
+        connection = functools.partial(_PinnedHTTPSConnection, pinned_fingerprint=self._pinned_fingerprint)
+        return self.do_open(connection, req)
 
 
 class PentaractClient:
@@ -54,6 +117,15 @@ class PentaractClient:
     @password.setter
     def password(self, value):
         self.addon.setSettingString("password", value or "")
+
+    @property
+    def trusted_fingerprint(self):
+        """SHA-256 fingerprint of the self-signed server certificate the user
+        accepted, or "" when the server must have a CA-signed certificate."""
+        return self.addon.getSettingString("tls_trusted_sha256").strip().upper()
+
+    def trust_certificate(self, fingerprint):
+        self.addon.setSettingString("tls_trusted_sha256", (fingerprint or "").strip().upper())
 
     @property
     def access_token(self):
@@ -139,7 +211,13 @@ class PentaractClient:
             self._encode_path(path),
             query,
         )
-        return self._with_kodi_headers(stream_url, {"User-Agent": self.user_agent()})
+        options = {"User-Agent": self.user_agent()}
+        if self._pinned_fingerprint():
+            # Kodi's player cannot pin a certificate, only skip verification.
+            # The addon checked the pinned certificate when it got the token
+            # this URL carries.
+            options["verifypeer"] = "false"
+        return self._with_kodi_headers(stream_url, options)
 
     def open_stream(self, storage_id, path, byte_range=None, inline=True, timeout=60, download_id=None):
         if not self.base_url:
@@ -189,7 +267,7 @@ class PentaractClient:
         )
 
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with self._open(request, timeout=30) as response:
                 raw_data = response.read()
         except urllib.error.HTTPError as error:
             message = self._extract_error_message(error)
@@ -203,7 +281,7 @@ class PentaractClient:
                     method=method,
                 )
                 try:
-                    with urllib.request.urlopen(request, timeout=30) as response:
+                    with self._open(request, timeout=30) as response:
                         raw_data = response.read()
                 except urllib.error.HTTPError as retry_error:
                     raise PentaractAPIError(
@@ -265,13 +343,48 @@ class PentaractClient:
         )
 
         try:
-            return urllib.request.urlopen(request, timeout=timeout)
+            return self._open(request, timeout=timeout)
         except urllib.error.HTTPError as error:
             if error.code == 401:
                 return error
             raise PentaractAPIError(self._extract_error_message(error), error.code)
         except urllib.error.URLError as error:
             raise PentaractAPIError(str(error.reason))
+
+    def _pinned_fingerprint(self):
+        if not self.base_url.startswith("https://"):
+            return ""
+        return self.trusted_fingerprint
+
+    def _open(self, request, timeout):
+        """Opens request against the server. Over HTTPS the certificate must
+        either be signed by a known authority or match the one the user
+        trusted; otherwise UntrustedCertificateError carries the fingerprint
+        the server presented, so the user can be asked about it."""
+        pinned = self._pinned_fingerprint()
+        try:
+            if pinned:
+                opener = urllib.request.build_opener(_PinnedHTTPSHandler(pinned))
+                return opener.open(request, timeout=timeout)
+            return urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError:
+            raise
+        except urllib.error.URLError as error:
+            if isinstance(error.reason, _CertificateMismatch):
+                raise UntrustedCertificateError(error.reason.fingerprint, changed=True)
+            if isinstance(error.reason, ssl.SSLCertVerificationError):
+                raise UntrustedCertificateError(self._server_fingerprint())
+            raise
+
+    def _server_fingerprint(self):
+        parts = urllib.parse.urlsplit(self.base_url)
+        host, port = parts.hostname, parts.port or 443
+        try:
+            with socket.create_connection((host, port), timeout=10) as raw_socket:
+                with _unverified_tls_context().wrap_socket(raw_socket, server_hostname=host) as tls_socket:
+                    return certificate_fingerprint(tls_socket.getpeercert(binary_form=True))
+        except OSError as error:
+            raise PentaractAPIError(str(error))
 
     def _has_valid_token(self):
         return bool(self.access_token) and self.token_expiry > int(time.time()) + 60
