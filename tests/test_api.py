@@ -20,6 +20,12 @@ class FakeBinaryResponse:
 
 
 class APIModuleTests(unittest.TestCase):
+    def fake_urlopen(self, module, fake):
+        # urllib.request is shared by every test module: restore it afterwards.
+        original = module.urllib.request.urlopen
+        module.urllib.request.urlopen = fake
+        self.addCleanup(setattr, module.urllib.request, "urlopen", original)
+
     def load_api_module(self, addon_info=None):
         return load_plugin_module(
             "pentaract_api_test",
@@ -55,7 +61,7 @@ class APIModuleTests(unittest.TestCase):
             captured["timeout"] = timeout
             return FakeJSONResponse()
 
-        module.urllib.request.urlopen = fake_urlopen
+        self.fake_urlopen(module, fake_urlopen)
 
         client._request("GET", "/api/storages", include_auth=False, retry_auth=False)
 
@@ -76,7 +82,7 @@ class APIModuleTests(unittest.TestCase):
             captured["timeout"] = timeout
             return FakeBinaryResponse()
 
-        module.urllib.request.urlopen = fake_urlopen
+        self.fake_urlopen(module, fake_urlopen)
 
         response = client._perform_binary_open(
             "/api/storages/storage-1/files/download/Videos/movie.mkv?inline=1",
