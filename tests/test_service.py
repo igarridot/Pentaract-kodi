@@ -170,6 +170,76 @@ class ServiceModuleTests(unittest.TestCase):
         self.assertTrue(remote_response.closed)
         self.assertFalse(runtime.buffer_state.snapshot()["active"])
 
+    def test_forward_response_headers_closes_connection_after_each_response(self):
+        module, _addon, _profile_dir = self.load_service_module()
+        runtime = module.ProxyRuntime()
+        handler = FakeHandler()
+        response = FakeResponse(headers={"Content-Length": "123", "Content-Type": "video/mp4"}, status=206)
+
+        runtime.forward_response_headers(handler, response, {})
+
+        self.assertIn(("Connection", "close"), handler.sent_headers)
+        self.assertTrue(handler.close_connection)
+
+    def test_stream_with_prebuffer_reports_backend_ending_the_stream_short(self):
+        module, _addon, _profile_dir = self.load_service_module()
+        runtime = module.ProxyRuntime()
+        handler = FakeHandler()
+        payload = b"x" * 1000
+
+        class ShortResponse(FakeResponse):
+            def __init__(self):
+                super().__init__(headers={"Content-Length": "4096"}, status=206)
+                self._buffer = io.BytesIO(payload)
+
+            def read(self, size=-1):
+                return self._buffer.read(size)
+
+        forwarded = runtime.stream_with_prebuffer(
+            handler,
+            ShortResponse(),
+            "request-1",
+            "Movie",
+            prebuffer_bytes=8 * 1024 * 1024,
+            chunk_size=256 * 1024,
+            max_initial_wait_seconds=1,
+        )
+
+        self.assertEqual(len(payload), forwarded)
+        self.assertEqual(payload, handler.wfile.getvalue())
+        errors = [message for message, level in module.xbmc.logged if level == module.xbmc.LOGERROR]
+        self.assertEqual(1, len(errors))
+        self.assertIn("1000 of 4096 bytes", errors[0])
+
+    def test_stream_with_prebuffer_stays_quiet_when_the_body_is_complete(self):
+        module, _addon, _profile_dir = self.load_service_module()
+        runtime = module.ProxyRuntime()
+        handler = FakeHandler()
+        payload = b"y" * 4096
+
+        class CompleteResponse(FakeResponse):
+            def __init__(self):
+                super().__init__(headers={"Content-Length": str(len(payload))}, status=206)
+                self._buffer = io.BytesIO(payload)
+
+            def read(self, size=-1):
+                return self._buffer.read(size)
+
+        forwarded = runtime.stream_with_prebuffer(
+            handler,
+            CompleteResponse(),
+            "request-2",
+            "Movie",
+            prebuffer_bytes=8 * 1024 * 1024,
+            chunk_size=256 * 1024,
+            max_initial_wait_seconds=1,
+        )
+
+        self.assertEqual(len(payload), forwarded)
+        self.assertEqual(payload, handler.wfile.getvalue())
+        errors = [message for message, level in module.xbmc.logged if level == module.xbmc.LOGERROR]
+        self.assertEqual([], errors)
+
 
 if __name__ == "__main__":
     unittest.main()
