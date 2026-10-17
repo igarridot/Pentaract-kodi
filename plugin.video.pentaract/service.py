@@ -349,6 +349,13 @@ class ProxyRuntime:
         if not headers.get("Content-Type") and session.get("mime_type"):
             handler.send_header("Content-Type", session["mime_type"])
 
+        # One response per connection. When the backend cuts a response short
+        # (a chunk that failed, an upstream connection that dropped) Kodi must
+        # see end-of-stream immediately and reconnect with a new Range, not sit
+        # on a keep-alive socket waiting for bytes that never arrive.
+        handler.send_header("Connection", "close")
+        handler.close_connection = True
+
         handler.end_headers()
 
     def stream_with_prebuffer(
@@ -370,6 +377,9 @@ class ProxyRuntime:
         )
         queue = Queue(maxsize=buffer_plan["queue_size"])
         network_read_size = buffer_plan["network_read_size"]
+        expected_bytes = self._safe_int(remote_response.headers.get("Content-Length"), 0)
+        forwarded_bytes = 0
+        client_gone = False
         queued_bytes = [0]
         producer_done = [False]
         producer_error = [None]
@@ -478,11 +488,20 @@ class ProxyRuntime:
                 update_queued(-len(item))
                 handler.wfile.write(item)
                 handler.wfile.flush()
+                forwarded_bytes += len(item)
         except (BrokenPipeError, ConnectionResetError, socket.error):
+            client_gone = True
             stop_event.set()
         finally:
             stop_event.set()
             producer_thread.join(timeout=1.0)
+            if not client_gone and 0 < forwarded_bytes < expected_bytes:
+                log(
+                    "Backend ended the stream after %d of %d bytes; Kodi will reconnect"
+                    % (forwarded_bytes, expected_bytes),
+                    xbmc.LOGERROR,
+                )
+        return forwarded_bytes
 
     def _safe_int(self, value, default):
         try:
