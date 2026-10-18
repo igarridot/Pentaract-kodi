@@ -199,27 +199,3 @@ msgstr "Marked as watched"
 msgctxt "#30052"
 msgid "Marked as unwatched"
 msgstr "Marked as unwatched"
-
-msgctxt "#30053"
-msgid "Play the next video in the folder automatically"
-msgstr "Play the next video in the folder automatically"
-
-msgctxt "#30054"
-msgid "Up next: %s\nStarting in %d s"
-msgstr "Up next: %s\nStarting in %d s"
-
-msgctxt "#30055"
-msgid "Pentaract: turn autoplay off"
-msgstr "Pentaract: turn autoplay off"
-
-msgctxt "#30056"
-msgid "Pentaract: turn autoplay on"
-msgstr "Pentaract: turn autoplay on"
-
-msgctxt "#30057"
-msgid "Autoplay on"
-msgstr "Autoplay on"
-
-msgctxt "#30058"
-msgid "Autoplay off"
-msgstr "Autoplay off"

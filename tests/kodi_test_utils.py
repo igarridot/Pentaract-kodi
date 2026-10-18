@@ -33,9 +33,6 @@ class FakeAddon:
             return value.lower() == "true"
         return bool(value)
 
-    def setSettingBool(self, setting_id, value):
-        self._settings[setting_id] = bool(value)
-
     def getAddonInfo(self, key):
         return self._info.get(key, "")
 
@@ -76,30 +73,6 @@ class FakeDialogProgressBG:
 
     def update(self, progress, title, message):
         self.updated.append((progress, title, message))
-
-    def close(self):
-        self.closed += 1
-
-
-class FakeDialogProgress:
-    """Modal progress dialog; cancel_after_updates makes the user press
-    Cancel once that many updates were shown."""
-
-    cancel_after_updates = None
-
-    def __init__(self):
-        self.created = []
-        self.updated = []
-        self.closed = 0
-
-    def create(self, heading, message=""):
-        self.created.append((heading, message))
-
-    def update(self, percent, message=""):
-        self.updated.append((percent, message))
-
-    def iscanceled(self):
-        return self.cancel_after_updates is not None and len(self.updated) >= self.cancel_after_updates
 
     def close(self):
         self.closed += 1
@@ -160,9 +133,6 @@ class FakeMonitor:
 
 
 class FakePlayer:
-    def isPlaying(self):
-        return False
-
     def getPlayingFile(self):
         raise RuntimeError("Kodi is not playing any media file")
 
@@ -204,7 +174,6 @@ def install_kodi_stubs(profile_dir, addon_settings=None, addon_info=None, locali
     xbmcgui.NOTIFICATION_ERROR = 1
     xbmcgui.Dialog = FakeDialog
     xbmcgui.DialogProgressBG = FakeDialogProgressBG
-    xbmcgui.DialogProgress = FakeDialogProgress
     xbmcgui.ListItem = FakeListItem
 
     xbmcplugin = types.ModuleType("xbmcplugin")

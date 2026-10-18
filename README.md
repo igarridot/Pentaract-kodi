@@ -16,7 +16,6 @@ Kodi 21 addon and repository for browsing Pentaract storages and streaming suppo
 - Direct playback of supported video files
 - Watch progress shared with the Pentaract web UI: listings show the watched tick and the resume point, and the plugin reports the position to the server every 10 s while a video plays and once more when it stops
 - "Pentaract: mark as watched / unwatched" context menu entries that mark a video on the server. Kodi's built-in watched toggles only change Kodi's local database and are not shared
-- Autoplay: when a video plays to its end, the next video in the same folder starts after a 5 s countdown you can cancel. Stopping a video by hand does not start the next one. Turn it on or off with the "Pentaract: turn autoplay on / off" context menu entry on any video, or in the addon settings (on by default)
 - Optional listing of non-video files as informational entries
 - Local streaming proxy with configurable buffer profiles
 - Optional direct streaming mode that bypasses the local proxy
