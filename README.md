@@ -14,6 +14,8 @@ Kodi 21 addon and repository for browsing Pentaract storages and streaming suppo
 - HTTPS servers with a self-signed certificate, trusted once by fingerprint
 - Storage listing and folder navigation through the Pentaract API
 - Direct playback of supported video files
+- Watch progress shared with the Pentaract web UI: listings show the watched tick and the resume point, and the plugin reports the position to the server every 10 s while a video plays and once more when it stops
+- "Pentaract: mark as watched / unwatched" context menu entries that mark a video on the server. Kodi's built-in watched toggles only change Kodi's local database and are not shared
 - Optional listing of non-video files as informational entries
 - Local streaming proxy with configurable buffer profiles
 - Optional direct streaming mode that bypasses the local proxy

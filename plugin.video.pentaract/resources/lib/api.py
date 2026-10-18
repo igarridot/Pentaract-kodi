@@ -196,6 +196,28 @@ class PentaractClient:
             "/api/storages/%s/files/tree/%s" % (storage_id, encoded_path),
         )
 
+    def save_watch_progress(self, storage_id, path, position_seconds, duration_seconds):
+        """Tells the server where the user is in a video, so the web UI and
+        Kodi resume from the same point."""
+        encoded_path = self._encode_path(path)
+        return self._request(
+            "PUT",
+            "/api/storages/%s/files/watch_progress/%s" % (storage_id, encoded_path),
+            payload={
+                "position_seconds": float(position_seconds),
+                "duration_seconds": float(duration_seconds),
+            },
+        )
+
+    def set_watched(self, storage_id, path, watched):
+        """Marks a video as watched or pending on the server."""
+        encoded_path = self._encode_path(path)
+        return self._request(
+            "PUT",
+            "/api/storages/%s/files/watched/%s" % (storage_id, encoded_path),
+            payload={"watched": bool(watched)},
+        )
+
     def build_stream_url(self, storage_id, path, download_id=None):
         token = self.ensure_token()
         query_params = {

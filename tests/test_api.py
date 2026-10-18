@@ -69,6 +69,58 @@ class APIModuleTests(unittest.TestCase):
         self.assertEqual("Pentaract-Kodi/1.2.3", captured["headers"]["User-agent"])
         self.assertEqual(30, captured["timeout"])
 
+    def test_save_watch_progress_puts_position(self):
+        module, addon, _profile_dir = self.load_api_module()
+        client = module.PentaractClient(addon)
+        client.base_url = "http://backend"
+        client.access_token = "tok"
+        client.token_expiry = 9999999999
+        captured = {}
+
+        def fake_urlopen(request, timeout=30):
+            captured["url"] = request.full_url
+            captured["method"] = request.get_method()
+            captured["body"] = request.data
+            captured["headers"] = dict(request.header_items())
+            return FakeJSONResponse()
+
+        self.fake_urlopen(module, fake_urlopen)
+
+        client.save_watch_progress("storage-1", "TV/ep #1.mkv", 42.5, 1800)
+
+        self.assertEqual("http://backend/api/storages/storage-1/files/watch_progress/TV/ep%20%231.mkv", captured["url"])
+        self.assertEqual("PUT", captured["method"])
+        self.assertEqual("Bearer tok", captured["headers"]["Authorization"])
+        self.assertEqual(
+            {"position_seconds": 42.5, "duration_seconds": 1800.0},
+            module.json.loads(captured["body"]),
+        )
+
+    def test_set_watched_puts_the_mark(self):
+        module, addon, _profile_dir = self.load_api_module()
+        client = module.PentaractClient(addon)
+        client.base_url = "http://backend"
+        client.access_token = "tok"
+        client.token_expiry = 9999999999
+        captured = []
+
+        def fake_urlopen(request, timeout=30):
+            captured.append((request.full_url, request.get_method(), module.json.loads(request.data)))
+            return FakeJSONResponse()
+
+        self.fake_urlopen(module, fake_urlopen)
+
+        client.set_watched("storage-1", "TV/ep #1.mkv", True)
+        client.set_watched("storage-1", "a.mkv", 0)
+
+        self.assertEqual(
+            [
+                ("http://backend/api/storages/storage-1/files/watched/TV/ep%20%231.mkv", "PUT", {"watched": True}),
+                ("http://backend/api/storages/storage-1/files/watched/a.mkv", "PUT", {"watched": False}),
+            ],
+            captured,
+        )
+
     def test_binary_open_sends_user_agent_and_authorization_headers(self):
         module, addon, _profile_dir = self.load_api_module(addon_info={"version": "1.2.3"})
         client = module.PentaractClient(addon)
