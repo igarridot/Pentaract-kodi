@@ -108,6 +108,8 @@ class PlaybackTests(unittest.TestCase):
         watcher = self.module.PlaybackWatcher()
         self.assertIsNone(watcher.position())
 
+        watcher.getPlayingFile = lambda: "http://backend/a.mkv"
+        watcher.onAVStarted()
         watcher.getTime = lambda: 42.5
         watcher.getTotalTime = lambda: 0
         self.assertIsNone(watcher.position())
@@ -115,9 +117,24 @@ class PlaybackTests(unittest.TestCase):
         watcher.getTotalTime = lambda: 5400
         self.assertEqual((42.5, 5400.0), watcher.position())
 
-        watcher.onAVStarted()
         watcher.onPlayBackEnded()
         self.assertTrue(watcher.started and watcher.finished)
+
+    def test_watcher_ignores_another_video_taking_over(self):
+        watcher = self.module.PlaybackWatcher()
+        watcher.getPlayingFile = lambda: "http://backend/a.mkv"
+        watcher.getTime = lambda: 42.5
+        watcher.getTotalTime = lambda: 5400
+        watcher.onAVStarted()
+        self.assertEqual((42.5, 5400.0), watcher.position())
+
+        # Kodi already plays the next video but has not said so yet.
+        watcher.getPlayingFile = lambda: "http://backend/b.mkv"
+        self.assertIsNone(watcher.position())
+        self.assertFalse(watcher.finished)
+
+        watcher.onAVStarted()
+        self.assertTrue(watcher.finished)
 
 
 if __name__ == "__main__":

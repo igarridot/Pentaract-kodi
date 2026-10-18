@@ -23,9 +23,15 @@ class PlaybackWatcher(xbmc.Player):
         super().__init__()
         self.started = False
         self.finished = False
+        self.playing_file = None
 
     def onAVStarted(self):
+        if self.started:
+            # Another video took over the player: ours is over.
+            self.finished = True
+            return
         self.started = True
+        self.playing_file = self._current_file()
 
     def onPlayBackStopped(self):
         self.finished = True
@@ -38,7 +44,12 @@ class PlaybackWatcher(xbmc.Player):
 
     def position(self):
         """Returns (position, duration) in seconds, or None if Kodi has
-        nothing usable (not playing anymore, or duration still unknown)."""
+        nothing usable (not playing anymore, another video, or duration
+        still unknown)."""
+        if self._current_file() != self.playing_file:
+            # Kodi switched to another video before telling us: its times
+            # must not be saved as this one's.
+            return None
         try:
             position = float(self.getTime())
             duration = float(self.getTotalTime())
@@ -47,6 +58,12 @@ class PlaybackWatcher(xbmc.Player):
         if duration <= 0:
             return None
         return position, duration
+
+    def _current_file(self):
+        try:
+            return self.getPlayingFile()
+        except RuntimeError:
+            return None
 
 
 def follow_playback(watcher, monitor, save, clock=time.time):

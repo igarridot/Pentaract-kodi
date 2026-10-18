@@ -133,6 +133,9 @@ class FakeMonitor:
 
 
 class FakePlayer:
+    def getPlayingFile(self):
+        raise RuntimeError("Kodi is not playing any media file")
+
     def getTime(self):
         raise RuntimeError("Kodi is not playing any media file")
 
