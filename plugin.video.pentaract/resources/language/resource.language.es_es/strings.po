@@ -199,27 +199,3 @@ msgstr "Marcado como visto"
 msgctxt "#30052"
 msgid "Marked as unwatched"
 msgstr "Marcado como pendiente"
-
-msgctxt "#30053"
-msgid "Play the next video in the folder automatically"
-msgstr "Reproducir automáticamente el siguiente vídeo de la carpeta"
-
-msgctxt "#30054"
-msgid "Up next: %s\nStarting in %d s"
-msgstr "A continuación: %s\nEmpieza en %d s"
-
-msgctxt "#30055"
-msgid "Pentaract: turn autoplay off"
-msgstr "Pentaract: desactivar reproducción automática"
-
-msgctxt "#30056"
-msgid "Pentaract: turn autoplay on"
-msgstr "Pentaract: activar reproducción automática"
-
-msgctxt "#30057"
-msgid "Autoplay on"
-msgstr "Reproducción automática activada"
-
-msgctxt "#30058"
-msgid "Autoplay off"
-msgstr "Reproducción automática desactivada"
