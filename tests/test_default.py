@@ -113,6 +113,117 @@ class DefaultModuleTests(unittest.TestCase):
             build_calls,
         )
 
+    def test_playable_items_show_server_watch_progress(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        calls = module.xbmcplugin.calls
+
+        module.add_playable_file_item("storage-1", {
+            "path": "Movies/a.mkv", "name": "a.mkv", "size": 10,
+            "watch": {"position_seconds": 2530, "duration_seconds": 5400, "watched": True},
+        })
+        module.add_playable_file_item("storage-1", {
+            "path": "Movies/b.mkv", "name": "b.mkv", "size": 10,
+            "watch": {"position_seconds": 0, "duration_seconds": 5400, "watched": False},
+        })
+        module.add_playable_file_item("storage-1", {"path": "Movies/c.mkv", "name": "c.mkv", "size": 10})
+
+        tags = [call[3].getVideoInfoTag() for call in calls if call[0] == "addDirectoryItem"]
+        self.assertEqual((1, (2530.0, 5400.0)), (tags[0].playcount, tags[0].resume_point))
+        self.assertEqual((0, None), (tags[1].playcount, tags[1].resume_point))
+        self.assertEqual((None, None), (tags[2].playcount, tags[2].resume_point))
+
+    def test_report_watch_progress_saves_and_refreshes_listing(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        saved = []
+
+        class FakeClient:
+            def save_watch_progress(self, storage_id, path, position, duration):
+                saved.append((storage_id, path, position, duration))
+
+        def fake_follow(watcher, monitor, save):
+            return save(600.0, 5400.0)
+
+        module.CLIENT = FakeClient()
+        module.follow_playback = fake_follow
+
+        module.report_watch_progress("storage-1", "Movies/a.mkv")
+
+        self.assertEqual([("storage-1", "Movies/a.mkv", 600.0, 5400.0)], saved)
+        self.assertIn("Container.Refresh", module.xbmc.builtins)
+
+    def test_report_watch_progress_logs_failures_without_refreshing(self):
+        module, _addon, _profile_dir = self.load_default_module()
+
+        class FailingClient:
+            def save_watch_progress(self, storage_id, path, position, duration):
+                raise module.PentaractAPIError("server down", status=502)
+
+        module.CLIENT = FailingClient()
+        module.follow_playback = lambda watcher, monitor, save: save(600.0, 5400.0)
+
+        module.report_watch_progress("storage-1", "Movies/a.mkv")
+
+        self.assertNotIn("Container.Refresh", module.xbmc.builtins)
+        self.assertTrue(any("server down" in message for message, _level in module.xbmc.logged))
+
+    def test_playable_items_offer_pentaract_watched_marks(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        calls = module.xbmcplugin.calls
+
+        for watch in (
+            None,
+            {"position_seconds": 600, "duration_seconds": 5400, "watched": False},
+            {"position_seconds": 0, "duration_seconds": 5400, "watched": True},
+        ):
+            module.add_playable_file_item("storage-1", {"path": "TV/ep 1.mkv", "name": "ep 1.mkv", "size": 1, "watch": watch})
+
+        menus = [call[3].context_menu for call in calls if call[0] == "addDirectoryItem"]
+        labels = [[label for label, _command in menu] for menu in menus]
+        self.assertEqual(["Pentaract: mark as watched"], labels[0])
+        self.assertEqual(["Pentaract: mark as watched", "Pentaract: mark as unwatched"], labels[1])
+        self.assertEqual(["Pentaract: mark as unwatched"], labels[2])
+
+        command = menus[2][0][1]
+        self.assertTrue(command.startswith("RunPlugin(plugin://plugin.video.pentaract?"))
+        params = dict(module.urllib.parse.parse_qsl(command[len("RunPlugin(plugin://plugin.video.pentaract?"):-1]))
+        self.assertEqual(
+            {"action": "set_watched", "storage_id": "storage-1", "path": "TV/ep 1.mkv", "watched": "0"},
+            params,
+        )
+
+    def run_set_watched(self, watched, make_client):
+        module, _addon, _profile_dir = self.load_default_module()
+        module.PARAMS = {"action": "set_watched", "storage_id": "storage-1", "path": "TV/ep 1.mkv", "watched": watched}
+        module.CLIENT = make_client(module)
+        module.ensure_authenticated = lambda interactive=True: True
+        module.route()
+        return module
+
+    def test_set_watched_action_marks_on_server_and_refreshes(self):
+        marks = []
+
+        class FakeClient:
+            def set_watched(self, storage_id, path, watched):
+                marks.append((storage_id, path, watched))
+
+        for value, expected in (("1", True), ("0", False)):
+            module = self.run_set_watched(value, lambda _module: FakeClient())
+            self.assertIn("Container.Refresh", module.xbmc.builtins)
+            self.assertEqual(("storage-1", "TV/ep 1.mkv", expected), marks[-1])
+        self.assertEqual("Marked as unwatched", module.DIALOG.notifications[-1][1])
+
+    def test_set_watched_action_reports_server_errors(self):
+        def failing_client(module):
+            class FailingClient:
+                def set_watched(self, storage_id, path, watched):
+                    raise module.PentaractAPIError("forbidden", status=403)
+
+            return FailingClient()
+
+        module = self.run_set_watched("1", failing_client)
+        self.assertNotIn("Container.Refresh", module.xbmc.builtins)
+        self.assertEqual("forbidden", module.DIALOG.notifications[-1][1])
+
     def load_with_untrusted_server(self, answer):
         module, addon, _profile_dir = self.load_default_module()
         module.DIALOG.yesno_answer = answer

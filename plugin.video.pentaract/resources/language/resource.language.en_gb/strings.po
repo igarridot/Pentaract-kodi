@@ -183,3 +183,19 @@ msgstr ""
 msgctxt "#30048"
 msgid "Fingerprint of the self-signed certificate you accepted for an https:// server. Clear it to be asked again."
 msgstr ""
+
+msgctxt "#30049"
+msgid "Pentaract: mark as watched"
+msgstr "Pentaract: mark as watched"
+
+msgctxt "#30050"
+msgid "Pentaract: mark as unwatched"
+msgstr "Pentaract: mark as unwatched"
+
+msgctxt "#30051"
+msgid "Marked as watched"
+msgstr "Marked as watched"
+
+msgctxt "#30052"
+msgid "Marked as unwatched"
+msgstr "Marked as unwatched"

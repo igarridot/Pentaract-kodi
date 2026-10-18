@@ -78,6 +78,18 @@ class FakeDialogProgressBG:
         self.closed += 1
 
 
+class FakeInfoTagVideo:
+    def __init__(self):
+        self.playcount = None
+        self.resume_point = None
+
+    def setPlaycount(self, playcount):
+        self.playcount = playcount
+
+    def setResumePoint(self, time, totalTime=0.0):
+        self.resume_point = (time, totalTime)
+
+
 class FakeListItem:
     def __init__(self, label="", path=""):
         self.label = label
@@ -87,6 +99,14 @@ class FakeListItem:
         self.properties = {}
         self.mime_type = None
         self.content_lookup = True
+        self.video_info_tag = FakeInfoTagVideo()
+        self.context_menu = []
+
+    def addContextMenuItems(self, items):
+        self.context_menu.extend(items)
+
+    def getVideoInfoTag(self):
+        return self.video_info_tag
 
     def setArt(self, art):
         self.art = dict(art)
@@ -112,6 +132,14 @@ class FakeMonitor:
         return False
 
 
+class FakePlayer:
+    def getTime(self):
+        raise RuntimeError("Kodi is not playing any media file")
+
+    def getTotalTime(self):
+        raise RuntimeError("Kodi is not playing any media file")
+
+
 def purge_modules(*prefixes):
     for module_name in list(sys.modules):
         for prefix in prefixes:
@@ -133,6 +161,7 @@ def install_kodi_stubs(profile_dir, addon_settings=None, addon_info=None, locali
     xbmc.executebuiltin = lambda command: xbmc.builtins.append(command)
     xbmc.sleep = lambda milliseconds: None
     xbmc.Monitor = FakeMonitor
+    xbmc.Player = FakePlayer
 
     xbmcaddon = types.ModuleType("xbmcaddon")
     xbmcaddon.Addon = lambda addon_id=None: addon

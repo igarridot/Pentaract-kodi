@@ -19,6 +19,7 @@ from resources.lib.api import (
     PentaractClient,
     UntrustedCertificateError,
 )
+from resources.lib.playback import PlaybackWatcher, follow_playback
 from resources.lib.proxy import (
     PROXY_BASE_URL,
     PROXY_HEALTH_URL,
@@ -375,7 +376,48 @@ def end_directory():
     xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
 
 
-def add_item(label, params, folder, icon, mime_type=None, info=None, properties=None):
+def apply_watch_progress(list_item, watch):
+    """Shows the progress Pentaract keeps for this user (shared with the web
+    UI): Kodi's watched tick, and the resume point Kodi offers on play."""
+    if not watch:
+        return
+    tag = list_item.getVideoInfoTag()
+    tag.setPlaycount(1 if watch.get("watched") else 0)
+    position = float(watch.get("position_seconds") or 0)
+    duration = float(watch.get("duration_seconds") or 0)
+    if position > 0 and duration > 0:
+        tag.setResumePoint(position, duration)
+
+
+def watch_context_menu(storage_id, element):
+    """Context menu entries that mark a video on the Pentaract server. Kodi's
+    own watched toggles only change Kodi's local database, which nothing
+    tells the addon about for plugin items, so the web UI and other Kodi
+    installs would never see them."""
+    watch = element.get("watch") or {}
+    entries = []
+    if not watch.get("watched"):
+        entries.append((localized(30049, "Pentaract: mark as watched"), "1"))
+    if watch.get("watched") or float(watch.get("position_seconds") or 0) > 0:
+        entries.append((localized(30050, "Pentaract: mark as unwatched"), "0"))
+    return [
+        (
+            label,
+            "RunPlugin(%s)"
+            % plugin_url(
+                {
+                    "action": "set_watched",
+                    "storage_id": storage_id,
+                    "path": element["path"],
+                    "watched": value,
+                }
+            ),
+        )
+        for label, value in entries
+    ]
+
+
+def add_item(label, params, folder, icon, mime_type=None, info=None, properties=None, watch=None, context_menu=None):
     list_item = xbmcgui.ListItem(label=label)
     list_item.setArt({"icon": icon, "thumb": icon})
     if mime_type:
@@ -383,6 +425,9 @@ def add_item(label, params, folder, icon, mime_type=None, info=None, properties=
         list_item.setContentLookup(False)
     if info:
         list_item.setInfo("video", info)
+    apply_watch_progress(list_item, watch)
+    if context_menu:
+        list_item.addContextMenuItems(context_menu)
     for key, value in (properties or {}).items():
         list_item.setProperty(key, value)
     xbmcplugin.addDirectoryItem(HANDLE, plugin_url(params), list_item, folder)
@@ -440,6 +485,8 @@ def add_playable_file_item(storage_id, element):
         mime_type=mimetypes.guess_type(element["path"])[0] or "video/mp4",
         info={"title": element["name"], "size": int(element.get("size", 0))},
         properties={"IsPlayable": "true"},
+        watch=element.get("watch"),
+        context_menu=watch_context_menu(storage_id, element),
     )
 
 
@@ -571,6 +618,42 @@ def play_video(storage_id, path, title):
     list_item.setContentLookup(False)
     list_item.setProperty("IsPlayable", "true")
     xbmcplugin.setResolvedUrl(HANDLE, True, list_item)
+    report_watch_progress(storage_id, path)
+
+
+def report_watch_progress(storage_id, path):
+    """Follows the video just resolved and saves where the user is, until it
+    stops. Runs in this plugin call, which Kodi lets outlive setResolvedUrl."""
+
+    def save(position, duration):
+        try:
+            CLIENT.save_watch_progress(storage_id, path, position, duration)
+            return True
+        except (ConfigurationError, PentaractAPIError) as error:
+            log("Could not save watch progress: %s" % getattr(error, "message", error), xbmc.LOGWARNING)
+            return False
+
+    if follow_playback(PlaybackWatcher(), xbmc.Monitor(), save):
+        # Back in the listing, show the progress just saved.
+        xbmc.executebuiltin("Container.Refresh")
+
+
+def set_watched_from_params():
+    watched = PARAMS.get("watched") == "1"
+    if not ensure_authenticated(interactive=True):
+        return
+    try:
+        with_trusted_certificate(
+            CLIENT.set_watched,
+            PARAMS.get("storage_id", ""),
+            PARAMS.get("path", ""),
+            watched,
+        )
+    except PentaractAPIError as error:
+        show_api_error(error)
+        return
+    notify(localized(30051, "Marked as watched") if watched else localized(30052, "Marked as unwatched"))
+    xbmc.executebuiltin("Container.Refresh")
 
 
 def show_file_info():
@@ -617,6 +700,7 @@ def route():
         "login": open_settings_from_root,
         "optimize_streaming": open_settings_from_root,
         "play": play_from_params,
+        "set_watched": set_watched_from_params,
     }
     handler = action_handlers.get(PARAMS.get("action"))
     if handler is None:
