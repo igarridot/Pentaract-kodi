@@ -119,6 +119,14 @@ class PlaybackTests(unittest.TestCase):
 
         watcher.onPlayBackEnded()
         self.assertTrue(watcher.started and watcher.finished)
+        self.assertTrue(watcher.ended)
+
+    def test_watcher_stopped_by_hand_has_not_ended(self):
+        watcher = self.module.PlaybackWatcher()
+        watcher.onAVStarted()
+        watcher.onPlayBackStopped()
+        self.assertTrue(watcher.finished)
+        self.assertFalse(watcher.ended)
 
     def test_watcher_ignores_another_video_taking_over(self):
         watcher = self.module.PlaybackWatcher()
@@ -135,6 +143,7 @@ class PlaybackTests(unittest.TestCase):
 
         watcher.onAVStarted()
         self.assertTrue(watcher.finished)
+        self.assertFalse(watcher.ended)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from resources.lib.api import (
     PentaractClient,
     UntrustedCertificateError,
 )
+from resources.lib.play_queue import countdown, next_video
 from resources.lib.playback import PlaybackWatcher, follow_playback
 from resources.lib.proxy import (
     PROXY_BASE_URL,
@@ -417,6 +418,20 @@ def watch_context_menu(storage_id, element):
     ]
 
 
+def autoplay_enabled():
+    return ADDON.getSettingBool("autoplay_next")
+
+
+def autoplay_context_menu_entry():
+    """Turns playing the next video of the folder on or off, without going
+    through the addon settings."""
+    if autoplay_enabled():
+        label = localized(30055, "Pentaract: turn autoplay off")
+    else:
+        label = localized(30056, "Pentaract: turn autoplay on")
+    return (label, "RunPlugin(%s)" % plugin_url({"action": "toggle_autoplay"}))
+
+
 def add_item(label, params, folder, icon, mime_type=None, info=None, properties=None, watch=None, context_menu=None):
     list_item = xbmcgui.ListItem(label=label)
     list_item.setArt({"icon": icon, "thumb": icon})
@@ -486,7 +501,7 @@ def add_playable_file_item(storage_id, element):
         info={"title": element["name"], "size": int(element.get("size", 0))},
         properties={"IsPlayable": "true"},
         watch=element.get("watch"),
-        context_menu=watch_context_menu(storage_id, element),
+        context_menu=watch_context_menu(storage_id, element) + [autoplay_context_menu_entry()],
     )
 
 
@@ -633,9 +648,55 @@ def report_watch_progress(storage_id, path):
             log("Could not save watch progress: %s" % getattr(error, "message", error), xbmc.LOGWARNING)
             return False
 
-    if follow_playback(PlaybackWatcher(), xbmc.Monitor(), save):
+    watcher = PlaybackWatcher()
+    if follow_playback(watcher, xbmc.Monitor(), save):
         # Back in the listing, show the progress just saved.
         xbmc.executebuiltin("Container.Refresh")
+    if watcher.ended:
+        play_next_video(storage_id, path)
+
+
+def play_next_video(storage_id, path):
+    """Starts the video that follows path in its folder, after a countdown
+    the user can cancel. The new plugin call follows that video in turn, so
+    the whole folder plays in order."""
+    if not autoplay_enabled():
+        return
+    player = xbmc.Player()
+    if player.isPlaying():
+        # Kodi moved on by itself (its own playlist or "play next" setting).
+        return
+    try:
+        elements = with_trusted_certificate(CLIENT.list_directory, storage_id, parent_path(path))
+    except (ConfigurationError, PentaractAPIError) as error:
+        log("Could not list the folder for the next video: %s" % getattr(error, "message", error), xbmc.LOGWARNING)
+        return
+    upcoming = next_video(elements, path, is_video_path)
+    if upcoming is None:
+        return
+
+    message = localized(30054, "Up next: %s\nStarting in %d s")
+    if not countdown(
+        xbmcgui.DialogProgress(),
+        xbmc.Monitor(),
+        "Pentaract",
+        lambda remaining: message % (upcoming["name"], remaining),
+    ):
+        return
+    if player.isPlaying():
+        return
+    xbmc.executebuiltin(
+        "PlayMedia(%s)"
+        % plugin_url({"action": "play", "storage_id": storage_id, "path": upcoming["path"], "title": upcoming["name"]})
+    )
+
+
+def toggle_autoplay():
+    enabled = not autoplay_enabled()
+    ADDON.setSettingBool("autoplay_next", enabled)
+    notify(localized(30057, "Autoplay on") if enabled else localized(30058, "Autoplay off"))
+    # The context menu entry says what the next toggle does.
+    xbmc.executebuiltin("Container.Refresh")
 
 
 def set_watched_from_params():
@@ -701,6 +762,7 @@ def route():
         "optimize_streaming": open_settings_from_root,
         "play": play_from_params,
         "set_watched": set_watched_from_params,
+        "toggle_autoplay": toggle_autoplay,
     }
     handler = action_handlers.get(PARAMS.get("action"))
     if handler is None:

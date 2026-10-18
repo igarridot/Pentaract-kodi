@@ -23,6 +23,8 @@ class PlaybackWatcher(xbmc.Player):
         super().__init__()
         self.started = False
         self.finished = False
+        # Played to its end, as opposed to stopped, failed or replaced.
+        self.ended = False
         self.playing_file = None
 
     def onAVStarted(self):
@@ -38,6 +40,7 @@ class PlaybackWatcher(xbmc.Player):
 
     def onPlayBackEnded(self):
         self.finished = True
+        self.ended = True
 
     def onPlayBackError(self):
         self.finished = True

@@ -179,9 +179,10 @@ class DefaultModuleTests(unittest.TestCase):
 
         menus = [call[3].context_menu for call in calls if call[0] == "addDirectoryItem"]
         labels = [[label for label, _command in menu] for menu in menus]
-        self.assertEqual(["Pentaract: mark as watched"], labels[0])
-        self.assertEqual(["Pentaract: mark as watched", "Pentaract: mark as unwatched"], labels[1])
-        self.assertEqual(["Pentaract: mark as unwatched"], labels[2])
+        autoplay = "Pentaract: turn autoplay on"
+        self.assertEqual(["Pentaract: mark as watched", autoplay], labels[0])
+        self.assertEqual(["Pentaract: mark as watched", "Pentaract: mark as unwatched", autoplay], labels[1])
+        self.assertEqual(["Pentaract: mark as unwatched", autoplay], labels[2])
 
         command = menus[2][0][1]
         self.assertTrue(command.startswith("RunPlugin(plugin://plugin.video.pentaract?"))
@@ -190,6 +191,96 @@ class DefaultModuleTests(unittest.TestCase):
             {"action": "set_watched", "storage_id": "storage-1", "path": "TV/ep 1.mkv", "watched": "0"},
             params,
         )
+
+    def finish_video(self, ended=True, autoplay=True, listing=None, player_busy=False, cancel_after_updates=None):
+        """Plays TV/ep 1.mkv to its end (or stops it by hand) and returns the
+        module, to look at what the plugin did next."""
+        module, _addon, _profile_dir = self.load_default_module(settings={"autoplay_next": autoplay})
+        listed = []
+
+        class FakeClient:
+            def save_watch_progress(self, storage_id, path, position, duration):
+                pass
+
+            def list_directory(self, storage_id, path):
+                listed.append((storage_id, path))
+                if listing is None:
+                    raise module.PentaractAPIError("server down", status=502)
+                return listing
+
+        def fake_follow(watcher, monitor, save):
+            watcher.ended = ended
+            return save(5400.0, 5400.0)
+
+        module.CLIENT = FakeClient()
+        module.follow_playback = fake_follow
+        self.addCleanup(setattr, module.xbmc.Player, "isPlaying", module.xbmc.Player.isPlaying)
+        module.xbmc.Player.isPlaying = lambda self: player_busy
+        module.xbmcgui.DialogProgress.cancel_after_updates = cancel_after_updates
+        self.addCleanup(setattr, module.xbmcgui.DialogProgress, "cancel_after_updates", None)
+        module.report_watch_progress("storage-1", "TV/ep 1.mkv")
+        module.listed = listed
+        return module
+
+    EPISODES = [
+        {"path": "TV/ep 2.mkv", "name": "ep 2.mkv", "is_file": True},
+        {"path": "TV/cover.jpg", "name": "cover.jpg", "is_file": True},
+        {"path": "TV/ep 1.mkv", "name": "ep 1.mkv", "is_file": True},
+    ]
+
+    def play_media_params(self, module):
+        commands = [command for command in module.xbmc.builtins if command.startswith("PlayMedia(")]
+        prefix = "PlayMedia(plugin://plugin.video.pentaract?"
+        return [dict(module.urllib.parse.parse_qsl(command[len(prefix):-1])) for command in commands]
+
+    def test_ended_video_plays_the_next_one_in_its_folder(self):
+        module = self.finish_video(listing=self.EPISODES)
+        self.assertEqual([("storage-1", "TV/")], module.listed)
+        self.assertEqual(
+            [{"action": "play", "storage_id": "storage-1", "path": "TV/ep 2.mkv", "title": "ep 2.mkv"}],
+            self.play_media_params(module),
+        )
+
+    def test_no_next_video_when_stopped_by_hand_or_autoplay_off(self):
+        for options in ({"ended": False}, {"autoplay": False}):
+            module = self.finish_video(listing=self.EPISODES, **options)
+            self.assertEqual([], module.listed, options)
+            self.assertEqual([], self.play_media_params(module), options)
+
+    def test_no_next_video_after_the_last_one(self):
+        module = self.finish_video(listing=self.EPISODES[1:])
+        self.assertEqual([], self.play_media_params(module))
+
+    def test_cancelled_countdown_plays_nothing(self):
+        module = self.finish_video(listing=self.EPISODES, cancel_after_updates=1)
+        self.assertEqual([], self.play_media_params(module))
+
+    def test_no_next_video_when_kodi_already_plays_something(self):
+        module = self.finish_video(listing=self.EPISODES, player_busy=True)
+        self.assertEqual([], self.play_media_params(module))
+
+    def test_listing_failure_only_logs(self):
+        module = self.finish_video(listing=None)
+        self.assertEqual([], self.play_media_params(module))
+        self.assertTrue(any("server down" in message for message, _level in module.xbmc.logged))
+
+    def test_toggle_autoplay_flips_the_setting_and_refreshes(self):
+        module, addon, _profile_dir = self.load_default_module(settings={"autoplay_next": True})
+        module.PARAMS = {"action": "toggle_autoplay"}
+        module.route()
+        self.assertFalse(addon.getSettingBool("autoplay_next"))
+        self.assertEqual("Autoplay off", module.DIALOG.notifications[-1][1])
+        self.assertIn("Container.Refresh", module.xbmc.builtins)
+
+        module.route()
+        self.assertTrue(addon.getSettingBool("autoplay_next"))
+        self.assertEqual("Autoplay on", module.DIALOG.notifications[-1][1])
+
+    def test_autoplay_menu_entry_offers_the_opposite_of_the_setting(self):
+        module, _addon, _profile_dir = self.load_default_module(settings={"autoplay_next": True})
+        label, command = module.autoplay_context_menu_entry()
+        self.assertEqual("Pentaract: turn autoplay off", label)
+        self.assertEqual("RunPlugin(plugin://plugin.video.pentaract?action=toggle_autoplay)", command)
 
     def run_set_watched(self, watched, make_client):
         module, _addon, _profile_dir = self.load_default_module()
