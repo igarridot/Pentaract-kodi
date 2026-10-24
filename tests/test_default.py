@@ -132,7 +132,7 @@ class DefaultModuleTests(unittest.TestCase):
         self.assertEqual((0, None), (tags[1].playcount, tags[1].resume_point))
         self.assertEqual((None, None), (tags[2].playcount, tags[2].resume_point))
 
-    def test_report_watch_progress_saves_and_refreshes_listing(self):
+    def test_report_watch_progress_saves_without_refreshing_transient_container(self):
         module, _addon, _profile_dir = self.load_default_module()
         saved = []
 
@@ -146,10 +146,10 @@ class DefaultModuleTests(unittest.TestCase):
         module.CLIENT = FakeClient()
         module.follow_playback = fake_follow
 
-        module.report_watch_progress("storage-1", "Movies/a.mkv")
+        self.assertTrue(module.report_watch_progress("storage-1", "Movies/a.mkv"))
 
         self.assertEqual([("storage-1", "Movies/a.mkv", 600.0, 5400.0)], saved)
-        self.assertIn("Container.Refresh", module.xbmc.builtins)
+        self.assertEqual([], module.xbmc.builtins)
 
     def test_report_watch_progress_logs_failures_without_refreshing(self):
         module, _addon, _profile_dir = self.load_default_module()
@@ -161,10 +161,122 @@ class DefaultModuleTests(unittest.TestCase):
         module.CLIENT = FailingClient()
         module.follow_playback = lambda watcher, monitor, save: save(600.0, 5400.0)
 
-        module.report_watch_progress("storage-1", "Movies/a.mkv")
+        self.assertFalse(module.report_watch_progress("storage-1", "Movies/a.mkv"))
 
         self.assertNotIn("Container.Refresh", module.xbmc.builtins)
         self.assertTrue(any("server down" in message for message, _level in module.xbmc.logged))
+
+    def test_stop_restores_original_view_regardless_of_watch_progress_save(self):
+        for save_result in ("saved", "failed", "no_position"):
+            with self.subTest(save_result=save_result):
+                module, _addon, _profile_dir = self.load_default_module()
+                origin = module.plugin_url(module.browse_params("storage-1", "Películas", "TV/Season 1/"))
+                module.xbmc.info_labels["Container.FolderPath"] = origin
+                module.ensure_authenticated = lambda interactive=True: True
+                module.playback_stream_url = lambda *args: "http://backend/a.mkv"
+                watcher = module.PlaybackWatcher()
+                module.PlaybackWatcher = lambda: watcher
+                saved = []
+
+                def save(storage_id, path, position, duration):
+                    saved.append((storage_id, path, position, duration))
+                    if save_result == "failed":
+                        raise module.PentaractAPIError("server down", status=502)
+
+                module.CLIENT.save_watch_progress = save
+                resolve = module.xbmcplugin.setResolvedUrl
+
+                def resolve_and_start(handle, succeeded, item):
+                    resolve(handle, succeeded, item)
+                    # Kodi may start immediately inside setResolvedUrl.
+                    watcher.onAVStarted()
+
+                module.xbmcplugin.setResolvedUrl = resolve_and_start
+
+                def follow(active_watcher, monitor, save_position):
+                    self.assertIs(watcher, active_watcher)
+                    self.assertTrue(active_watcher.started)
+                    # The container no longer describes the originating view.
+                    module.xbmc.info_labels["Container.FolderPath"] = module.plugin_url({"action": "play"})
+                    active_watcher.onPlayBackStopped()
+                    return False if save_result == "no_position" else save_position(600, 5400)
+
+                module.follow_playback = follow
+                module.play_video("storage-1", "TV/Season 1/a.mkv", "Episode 1")
+
+                self.assertEqual(['Container.Update("%s")' % origin], module.xbmc.builtins)
+                self.assertEqual([] if save_result == "no_position" else [
+                    ("storage-1", "TV/Season 1/a.mkv", 600, 5400)
+                ], saved)
+
+    def test_playback_start_timeout_does_not_change_the_view(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        module.xbmc.info_labels["Container.FolderPath"] = "plugin://plugin.video.pentaract/?action=browse"
+        module.ensure_authenticated = lambda interactive=True: True
+        module.playback_stream_url = lambda *args: "http://backend/a.mkv"
+        module.follow_playback = lambda watcher, monitor, save: False
+
+        module.play_video("storage-1", "a.mkv", "Movie")
+
+        self.assertEqual([], module.xbmc.builtins)
+
+    def test_restore_waits_for_fullscreen_exit_and_directory_loading(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        origin = 'plugin://plugin.video.pentaract/?action=browse&path=TV%2F'
+        module.xbmcgui.current_window_id = 12005
+        waits = []
+
+        class TransitionMonitor:
+            def abortRequested(self):
+                return False
+
+            def waitForAbort(self, timeout):
+                self_test.assertEqual([], module.xbmc.builtins)
+                waits.append(timeout)
+                module.xbmcgui.current_window_id = 10025
+                module.xbmc.conditions["Container.IsUpdating"] = len(waits) == 1
+                return False
+
+        self_test = self
+        module.xbmc.Monitor = TransitionMonitor
+
+        module.restore_playback_view(origin, 10025)
+
+        self.assertEqual([0.1, 0.1], waits)
+        self.assertEqual(['Container.Update("%s")' % origin], module.xbmc.builtins)
+
+    def test_restore_leaves_other_playback_and_windows_alone(self):
+        for state in ("playing", "other_window", "other_folder", "no_origin", "shutdown"):
+            with self.subTest(state=state):
+                module, _addon, _profile_dir = self.load_default_module()
+                origin = "plugin://plugin.video.pentaract/?action=browse"
+                if state == "playing":
+                    module.xbmc.Player = lambda: type("Player", (), {"isPlaying": lambda self: True})()
+                elif state == "other_window":
+                    module.xbmcgui.current_window_id = 10000
+                elif state == "other_folder":
+                    module.xbmc.info_labels["Container.FolderPath"] = origin + "&path=Other%2F"
+                elif state == "no_origin":
+                    origin = ""
+                else:
+                    module.xbmc.Monitor = lambda: type("Monitor", (), {"abortRequested": lambda self: True})()
+
+                module.restore_playback_view(origin, 10025)
+
+                self.assertEqual([], module.xbmc.builtins)
+
+    def test_restore_wait_is_bounded_when_fullscreen_never_closes(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        module.xbmcgui.current_window_id = 12005
+        waits = []
+        monitor = module.xbmc.Monitor()
+        monitor.waitForAbort = lambda timeout: waits.append(timeout) or False
+        module.xbmc.Monitor = lambda: monitor
+
+        module.restore_playback_view("plugin://plugin.video.pentaract/?action=browse", 10025)
+
+        self.assertEqual(50, len(waits))
+        self.assertEqual([], module.xbmc.builtins)
 
     def test_playable_items_offer_pentaract_watched_marks(self):
         module, _addon, _profile_dir = self.load_default_module()
