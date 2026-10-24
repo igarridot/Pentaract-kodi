@@ -242,8 +242,44 @@ class DefaultModuleTests(unittest.TestCase):
 
         module.restore_playback_view(origin, 10025)
 
-        self.assertEqual([0.1, 0.1], waits)
+        self.assertEqual([0.1] * 4, waits)
         self.assertEqual(['Container.Update("%s")' % origin], module.xbmc.builtins)
+
+    def test_restore_waits_for_delayed_modal_directory_reload(self):
+        # Replay the Kodi 21.1 / Estuary Palantir failure: after Stop the
+        # video window is active and IsUpdating is false, but its initial
+        # reload opens a modal busy dialog. Updating during that reload
+        # leaves an empty listing containing only "..".
+        for busy_dialog in (10138, 10160):
+            with self.subTest(busy_dialog=busy_dialog):
+                module, _addon, _profile_dir = self.load_default_module()
+                origin = "plugin://plugin.video.pentaract/?action=browse&path=Shows%2F"
+                module.xbmc.info_labels["Container.FolderPath"] = origin
+                waits = []
+                monitor = module.xbmc.Monitor()
+
+                def wait(timeout):
+                    self.assertEqual([], module.xbmc.builtins, "do not re-enter Kodi's directory loader")
+                    waits.append(timeout)
+                    # The dialog opens after the window first appeared idle.
+                    module.xbmcgui.current_dialog_id = busy_dialog if len(waits) < 4 else 0
+                    return False
+
+                monitor.waitForAbort = wait
+                module.xbmc.Monitor = lambda: monitor
+
+                module.restore_playback_view(origin, 10025)
+
+                self.assertGreaterEqual(len(waits), 4)
+                self.assertEqual(['Container.Update("%s")' % origin], module.xbmc.builtins)
+
+    def test_restore_does_not_interrupt_a_modal_load_that_never_finishes(self):
+        module, _addon, _profile_dir = self.load_default_module()
+        module.xbmcgui.current_dialog_id = 10138
+
+        module.restore_playback_view("plugin://plugin.video.pentaract/?action=browse", 10025)
+
+        self.assertEqual([], module.xbmc.builtins)
 
     def test_restore_leaves_other_playback_and_windows_alone(self):
         for state in ("playing", "other_window", "other_folder", "no_origin", "shutdown"):

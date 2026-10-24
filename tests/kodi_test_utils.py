@@ -184,6 +184,8 @@ def install_kodi_stubs(profile_dir, addon_settings=None, addon_info=None, locali
     xbmcgui.ListItem = FakeListItem
     xbmcgui.current_window_id = 10025
     xbmcgui.getCurrentWindowId = lambda: xbmcgui.current_window_id
+    xbmcgui.current_dialog_id = 0
+    xbmcgui.getCurrentWindowDialogId = lambda: xbmcgui.current_dialog_id
 
     xbmcplugin = types.ModuleType("xbmcplugin")
     xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE = 0
