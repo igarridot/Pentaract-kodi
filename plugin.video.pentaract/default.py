@@ -617,11 +617,51 @@ def play_video(storage_id, path, title):
         list_item.setMimeType(mime_type)
     list_item.setContentLookup(False)
     list_item.setProperty("IsPlayable", "true")
+    # Fullscreen playback hides the container. Keep its actual URL rather
+    # than trying to infer the previous view from the video file's path.
+    return_path = xbmc.getInfoLabel("Container.FolderPath")
+    return_window = xbmcgui.getCurrentWindowId()
+    watcher = PlaybackWatcher()
     xbmcplugin.setResolvedUrl(HANDLE, True, list_item)
-    report_watch_progress(storage_id, path)
+    report_watch_progress(storage_id, path, watcher)
+    if watcher.finished:
+        restore_playback_view(return_path, return_window)
 
 
-def report_watch_progress(storage_id, path):
+def restore_playback_view(folder_path, window_id):
+    """Reloads the original listing after Kodi leaves fullscreen playback."""
+    if not folder_path:
+        return
+
+    monitor = xbmc.Monitor()
+    player = xbmc.Player()
+    # Player callbacks can arrive before the fullscreen window closes and
+    # before Kodi's own directory reload completes. Do not refresh that
+    # transient container or issue a second update while it is loading.
+    for _attempt in range(50):
+        if monitor.abortRequested() or player.isPlaying():
+            return
+        current_window = xbmcgui.getCurrentWindowId()
+        if current_window == window_id:
+            if not xbmc.getCondVisibility("Container.IsUpdating"):
+                current_path = xbmc.getInfoLabel("Container.FolderPath")
+                if current_path and current_path != folder_path:
+                    action = urllib.parse.parse_qs(urllib.parse.urlsplit(current_path).query).get("action")
+                    if action != ["play"]:
+                        # A different listing was opened during playback.
+                        return
+                safe_path = folder_path.replace("\\", "\\\\").replace('"', '\\"')
+                # Update keeps the directory history; Refresh(url) resets it.
+                xbmc.executebuiltin('Container.Update("%s")' % safe_path)
+                return
+        elif current_window != 12005:  # WINDOW_FULLSCREEN_VIDEO
+            # The user has navigated elsewhere. Leave that window alone.
+            return
+        if monitor.waitForAbort(0.1):
+            return
+
+
+def report_watch_progress(storage_id, path, watcher=None):
     """Follows the video just resolved and saves where the user is, until it
     stops. Runs in this plugin call, which Kodi lets outlive setResolvedUrl."""
 
@@ -633,9 +673,7 @@ def report_watch_progress(storage_id, path):
             log("Could not save watch progress: %s" % getattr(error, "message", error), xbmc.LOGWARNING)
             return False
 
-    if follow_playback(PlaybackWatcher(), xbmc.Monitor(), save):
-        # Back in the listing, show the progress just saved.
-        xbmc.executebuiltin("Container.Refresh")
+    return follow_playback(watcher or PlaybackWatcher(), xbmc.Monitor(), save)
 
 
 def set_watched_from_params():

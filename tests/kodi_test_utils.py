@@ -133,6 +133,9 @@ class FakeMonitor:
 
 
 class FakePlayer:
+    def isPlaying(self):
+        return False
+
     def getPlayingFile(self):
         raise RuntimeError("Kodi is not playing any media file")
 
@@ -160,6 +163,10 @@ def install_kodi_stubs(profile_dir, addon_settings=None, addon_info=None, locali
     xbmc.LOGERROR = 4
     xbmc.logged = []
     xbmc.builtins = []
+    xbmc.info_labels = {}
+    xbmc.conditions = {}
+    xbmc.getInfoLabel = lambda label: xbmc.info_labels.get(label, "")
+    xbmc.getCondVisibility = lambda condition: xbmc.conditions.get(condition, False)
     xbmc.log = lambda message, level=xbmc.LOGINFO: xbmc.logged.append((message, level))
     xbmc.executebuiltin = lambda command: xbmc.builtins.append(command)
     xbmc.sleep = lambda milliseconds: None
@@ -175,6 +182,8 @@ def install_kodi_stubs(profile_dir, addon_settings=None, addon_info=None, locali
     xbmcgui.Dialog = FakeDialog
     xbmcgui.DialogProgressBG = FakeDialogProgressBG
     xbmcgui.ListItem = FakeListItem
+    xbmcgui.current_window_id = 10025
+    xbmcgui.getCurrentWindowId = lambda: xbmcgui.current_window_id
 
     xbmcplugin = types.ModuleType("xbmcplugin")
     xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE = 0
