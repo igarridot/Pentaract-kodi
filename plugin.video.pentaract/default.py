@@ -635,6 +635,7 @@ def restore_playback_view(folder_path, window_id):
 
     monitor = xbmc.Monitor()
     player = xbmc.Player()
+    idle_polls = 0
     # Player callbacks can arrive before the fullscreen window closes and
     # before Kodi's own directory reload completes. Do not refresh that
     # transient container or issue a second update while it is loading.
@@ -643,7 +644,18 @@ def restore_playback_view(folder_path, window_id):
             return
         current_window = xbmcgui.getCurrentWindowId()
         if current_window == window_id:
-            if not xbmc.getCondVisibility("Container.IsUpdating"):
+            # On Kodi 21.1 Container.IsUpdating can be false while the
+            # directory is still loading behind the modal busy dialog.
+            # A second Update here re-enters the directory loader and can
+            # replace the listing with nothing but the parent item ("..").
+            busy_dialog = xbmcgui.getCurrentWindowDialogId() in (10138, 10160)
+            if busy_dialog or xbmc.getCondVisibility("Container.IsUpdating"):
+                idle_polls = 0
+            else:
+                idle_polls += 1
+            # Kodi also schedules a plugin refresh shortly after activating
+            # the window. Let that load start before considering it idle.
+            if idle_polls >= 3:
                 current_path = xbmc.getInfoLabel("Container.FolderPath")
                 if current_path and current_path != folder_path:
                     action = urllib.parse.parse_qs(urllib.parse.urlsplit(current_path).query).get("action")
@@ -657,6 +669,8 @@ def restore_playback_view(folder_path, window_id):
         elif current_window != 12005:  # WINDOW_FULLSCREEN_VIDEO
             # The user has navigated elsewhere. Leave that window alone.
             return
+        else:
+            idle_polls = 0
         if monitor.waitForAbort(0.1):
             return
 
